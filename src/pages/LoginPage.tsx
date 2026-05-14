@@ -25,7 +25,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#FCFCFC] text-[#1A1A1A]">
       <div className="p-6">
-        <Link to="/" className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900 w-fit">
+        <Link to="/" className="flex items-center gap-2 font-semibold text-sm tracking-tight text-neutral-900 w-fit">
           <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
           HUMAN IN THE LOOP
         </Link>
@@ -39,31 +39,31 @@ export function LoginPage() {
                 <Mail className="w-5 h-5 text-yellow-600" />
               </div>
               <h2 className="text-xl font-bold tracking-tight text-neutral-900 mb-2">
-                Check your email
+                E-Mail pr&uuml;fen
               </h2>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                We sent a sign-in link to <span className="font-semibold text-neutral-700">{email}</span>. Click the link in the email to sign in.
+                Wir haben einen Anmeldelink an <span className="font-semibold text-neutral-700">{email}</span> gesendet. Klicke auf den Link in der E-Mail, um dich anzumelden.
               </p>
               <button
                 onClick={() => setSent(false)}
                 className="mt-6 text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
               >
-                Use a different email
+                Andere E-Mail verwenden
               </button>
             </div>
           ) : (
             <>
               <h2 className="text-xl font-bold tracking-tight text-center mb-1 text-neutral-900">
-                Welcome back
+                Willkommen zur&uuml;ck
               </h2>
               <p className="text-xs text-neutral-500 text-center mb-8">
-                Enter your email to receive a sign-in link
+                Gib deine E-Mail-Adresse ein, um einen Anmeldelink zu erhalten
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                    Email
+                    E-Mail
                   </label>
                   <input
                     type="email"
@@ -81,7 +81,7 @@ export function LoginPage() {
                   disabled={loading}
                   className="w-full bg-yellow-400 border border-yellow-500 text-black font-bold text-xs py-2 rounded mt-2 hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2 group shadow-sm disabled:opacity-50"
                 >
-                  {loading ? "Sending..." : "Send sign-in link"}
+                  {loading ? "Wird gesendet..." : "Anmeldelink senden"}
                   <ArrowRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                 </button>
               </form>

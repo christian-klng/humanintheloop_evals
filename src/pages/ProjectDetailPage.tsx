@@ -60,11 +60,11 @@ export function ProjectDetailPage() {
   }, [id]);
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Loading...</div>;
+    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Laden...</div>;
   }
 
   if (!project) {
-    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Project not found</div>;
+    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Projekt nicht gefunden</div>;
   }
 
   const overallScore = latestRun?.overall_score;
@@ -74,21 +74,21 @@ export function ProjectDetailPage() {
     <div className="h-screen flex flex-col bg-white overflow-hidden text-sm">
       <header className="h-12 border-b border-neutral-200 px-6 flex items-center justify-between bg-white z-10">
         <div className="flex items-center gap-2 text-xs">
-          <Link to="/dashboard" className="text-neutral-400 hover:text-neutral-600 transition-colors">Projects</Link>
+          <Link to="/dashboard" className="text-neutral-400 hover:text-neutral-600 transition-colors">Projekte</Link>
           <span className="text-neutral-300">/</span>
           <span className="font-semibold text-neutral-900">{project.name}</span>
           <span className="ml-2 px-1.5 py-0.5 bg-neutral-100 text-[10px] rounded text-neutral-500 font-bold uppercase tracking-widest">
-            {latestRun?.status?.toUpperCase() || "NO RUNS"}
+            {latestRun?.status?.toUpperCase() || "KEINE LÄUFE"}
           </span>
         </div>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700">
             <Settings2 className="w-3.5 h-3.5" />
-            Configure
+            Konfigurieren
           </button>
           <button className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-yellow-500 transition-colors">
             <PlayCircle className="w-3.5 h-3.5" />
-            Run Evaluation
+            Evaluierung starten
           </button>
         </div>
       </header>
@@ -97,12 +97,12 @@ export function ProjectDetailPage() {
         {/* Column 1: Criteria */}
         <div className="w-[300px] shrink-0 flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">01. Criteria</span>
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">01. Kriterien</span>
             <button className="text-neutral-400 hover:text-neutral-900 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {criteria.length === 0 ? (
-              <p className="text-xs text-neutral-400 text-center py-8">No criteria defined yet</p>
+              <p className="text-xs text-neutral-400 text-center py-8">Noch keine Kriterien definiert</p>
             ) : (
               criteria.map((c) => (
                 <CriteriaCard key={c.id} title={c.title} desc={c.description} weight={`${c.weight}%`} />
@@ -114,7 +114,7 @@ export function ProjectDetailPage() {
         {/* Column 2: Prompts */}
         <div className="flex-[1.2] min-w-[320px] flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">02. Input Prompt</span>
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">02. Eingabe-Prompt</span>
             {latestRun && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
                 {latestRun.model_tag.toUpperCase()}
@@ -127,18 +127,18 @@ export function ProjectDetailPage() {
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-neutral-400 uppercase">System</label>
                   <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-40 overflow-y-auto bg-white">
-                    {latestRun.system_prompt || "No system prompt"}
+                    {latestRun.system_prompt || "Kein System-Prompt"}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase">User / Inputs</label>
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase">Benutzer / Eingaben</label>
                   <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-32 overflow-y-auto bg-white">
-                    {latestRun.user_input || "No user input"}
+                    {latestRun.user_input || "Keine Benutzereingabe"}
                   </div>
                 </div>
               </>
             ) : (
-              <p className="text-xs text-neutral-400 text-center py-8">No runs yet. Click "Run Evaluation" to get started.</p>
+              <p className="text-xs text-neutral-400 text-center py-8">Noch keine Läufe. Klicke auf &bdquo;Evaluierung starten&ldquo;, um zu beginnen.</p>
             )}
           </div>
         </div>
@@ -146,7 +146,7 @@ export function ProjectDetailPage() {
         {/* Column 3: Generated Result */}
         <div className="flex-[1.1] min-w-[300px] flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">03. Output</span>
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">03. Ausgabe</span>
             {latestRun?.latency_ms && (
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
@@ -160,7 +160,7 @@ export function ProjectDetailPage() {
                 {latestRun.output_text}
               </div>
             ) : (
-              <p className="text-xs text-neutral-400 text-center py-8">No output yet</p>
+              <p className="text-xs text-neutral-400 text-center py-8">Noch keine Ausgabe</p>
             )}
           </div>
         </div>
@@ -168,7 +168,7 @@ export function ProjectDetailPage() {
         {/* Column 4: Evaluation Results */}
         <div className="flex-[1.3] min-w-[320px] flex flex-col bg-neutral-50/50">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">04. Evaluation</span>
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">04. Evaluierung</span>
           </div>
           <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
             {overallScore != null ? (
@@ -178,8 +178,8 @@ export function ProjectDetailPage() {
                     <span className="text-xs font-bold text-neutral-900">{Math.round(Number(overallScore))}%</span>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-neutral-900">Overall {Number(overallScore) >= 80 ? "Pass" : "Needs Review"}</p>
-                    <p className="text-[10px] text-neutral-500">Confidence: {Number(overallScore) >= 90 ? "High" : Number(overallScore) >= 70 ? "Medium" : "Low"}</p>
+                    <p className="text-xs font-bold text-neutral-900">{Number(overallScore) >= 80 ? "Bestanden" : "Überprüfung nötig"}</p>
+                    <p className="text-[10px] text-neutral-500">Konfidenz: {Number(overallScore) >= 90 ? "Hoch" : Number(overallScore) >= 70 ? "Mittel" : "Niedrig"}</p>
                   </div>
                 </div>
 
@@ -201,7 +201,7 @@ export function ProjectDetailPage() {
                 {latestRun?.summary_text && (
                   <div className="mt-8 border border-neutral-200 rounded p-4 bg-white">
                     <div className="flex items-center gap-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                      <Info className="w-3.5 h-3.5" /> Summary
+                      <Info className="w-3.5 h-3.5" /> Zusammenfassung
                     </div>
                     <p className="text-neutral-700 text-xs leading-relaxed">
                       {latestRun.summary_text}
@@ -210,7 +210,7 @@ export function ProjectDetailPage() {
                 )}
               </>
             ) : (
-              <p className="text-xs text-neutral-400 text-center py-8">No evaluation results yet</p>
+              <p className="text-xs text-neutral-400 text-center py-8">Noch keine Evaluierungsergebnisse</p>
             )}
           </div>
         </div>

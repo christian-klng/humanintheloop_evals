@@ -1,16 +1,10 @@
-import { Link } from "react-router-dom";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
 
 export function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col items-center pt-8 overflow-x-hidden w-full bg-[#FCFCFC] text-[#1A1A1A]">
-      {/* Navigation */}
-      <nav className="w-full max-w-6xl flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900">
-          <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
-          HUMAN IN THE LOOP
-        </div>
-        <Link to="/impressum" className="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors">Impressum</Link>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <main className="flex-1 w-full max-w-5xl flex flex-col items-center justify-center text-center px-6 mt-32 relative z-10">
@@ -45,25 +39,7 @@ export function LandingPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="w-full bg-white border-t border-neutral-200 mt-auto flex flex-col items-center relative z-20">
-        <div className="w-full max-w-6xl px-6 py-16">
-          <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900 mb-4">
-            <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
-            HUMAN IN THE LOOP
-          </div>
-          <p className="text-xs text-neutral-500 max-w-xs leading-relaxed">
-            Verbessere die Antworten von Gro&szlig;en Sprachmodellen mit wenigen Klicks. Von einem einfachen Prompt zu hochwertigen Automatisierungen.
-          </p>
-        </div>
-
-        <div className="w-full border-t border-neutral-200">
-          <div className="w-full max-w-6xl mx-auto px-6 h-10 flex items-center justify-between text-[10px] text-neutral-400 font-mono">
-            <span>&copy; {new Date().getFullYear()} HUMAN IN THE LOOP</span>
-            <Link to="/impressum" className="hover:text-neutral-900 transition-colors">Impressum</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
