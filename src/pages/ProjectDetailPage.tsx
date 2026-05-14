@@ -158,7 +158,7 @@ export function ProjectDetailPage() {
             if (parsed.eval_started) {
               setEvaluating(true);
             }
-            if (parsed.eval_done || parsed.eval_error) {
+            if (parsed.eval_done || parsed.eval_error || parsed.eval_skipped) {
               setEvaluating(false);
               const runId = parsed.run_id;
               if (runId) {
@@ -207,15 +207,6 @@ export function ProjectDetailPage() {
           </span>
         </div>
         <div className="flex gap-2">
-          {availableModels.length > 0 && (
-            <button
-              onClick={() => setShowConfigModal(true)}
-              className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              {project.default_model ? `Modell: ${project.default_model.split("/").pop()}` : "Standardmodell wählen"}
-            </button>
-          )}
           <button
             onClick={handleStartEval}
             disabled={!canStart || streaming || evaluating}
@@ -248,7 +239,10 @@ export function ProjectDetailPage() {
                 </span>
               )}
             </div>
-            <button onClick={() => setShowCriterionModal(true)} className="text-neutral-400 hover:text-neutral-900 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setShowCriterionModal(true)} className="relative text-neutral-400 hover:text-neutral-900 transition-colors">
+              <Plus className="w-3.5 h-3.5" />
+              {(criteria.length === 0 || totalWeight !== 100) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />}
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {criteria.length === 0 ? (
@@ -265,11 +259,17 @@ export function ProjectDetailPage() {
         <div className="flex-[1.2] min-w-[320px] flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">02. Eingabe-Prompt</span>
-            {project.default_model && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
-                {project.default_model.split("/").pop()?.toUpperCase()}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {project.default_model && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
+                  {project.default_model.split("/").pop()?.toUpperCase()}
+                </span>
+              )}
+              <button onClick={() => setShowConfigModal(true)} className="relative text-neutral-400 hover:text-neutral-900 transition-colors">
+                <Settings2 className="w-3.5 h-3.5" />
+                {!project.default_model && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />}
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
             <div className="space-y-2">
@@ -329,9 +329,17 @@ export function ProjectDetailPage() {
         <div className="flex-[1.3] min-w-[320px] flex flex-col bg-neutral-50/50">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">04. Evaluierung</span>
-            <button onClick={() => setShowEvalConfigModal(true)} className="text-neutral-400 hover:text-neutral-900 transition-colors">
-              <Settings2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {project.judge_model && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
+                  {project.judge_model.split("/").pop()?.toUpperCase()}
+                </span>
+              )}
+              <button onClick={() => setShowEvalConfigModal(true)} className="relative text-neutral-400 hover:text-neutral-900 transition-colors">
+                <Settings2 className="w-3.5 h-3.5" />
+                {(!project.judge_model || !project.eval_user_prompt?.trim()) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />}
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
             {evaluating ? (

@@ -202,10 +202,11 @@ router.post("/projects/:id/runs", async (req, res) => {
         res.write(`data: ${JSON.stringify({ eval_done: true, run_id: run.id })}\n\n`);
       } catch (evalErr: any) {
         await query(`UPDATE eval_runs SET status = 'completed' WHERE id = $1`, [run.id]);
-        res.write(`data: ${JSON.stringify({ eval_error: evalErr.message || "Evaluierung fehlgeschlagen" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ eval_error: evalErr.message || "Evaluierung fehlgeschlagen", run_id: run.id })}\n\n`);
       }
     } else {
       await query(`UPDATE eval_runs SET status = 'completed' WHERE id = $1`, [run.id]);
+      res.write(`data: ${JSON.stringify({ eval_skipped: true, run_id: run.id })}\n\n`);
     }
   } catch (err: any) {
     await query(`UPDATE eval_runs SET status = 'failed' WHERE id = $1`, [run.id]);
