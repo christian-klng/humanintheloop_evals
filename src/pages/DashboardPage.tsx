@@ -69,7 +69,7 @@ function JoinWorkspaceModal({ onClose, onJoined }: { onClose: () => void; onJoin
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           placeholder="000000"
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm font-mono text-center tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm font-mono text-center tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
           autoFocus
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
         />
@@ -81,7 +81,7 @@ function JoinWorkspaceModal({ onClose, onJoined }: { onClose: () => void; onJoin
           <button
             onClick={handleJoin}
             disabled={loading || code.length !== 6}
-            className="flex-1 px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50"
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50"
           >
             {loading ? "..." : "Beitreten"}
           </button>
@@ -123,7 +123,7 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="z.B. Mein Team"
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+          className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
           autoFocus
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
         />
@@ -135,7 +135,7 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
           <button
             onClick={handleCreate}
             disabled={loading || !name.trim()}
-            className="flex-1 px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50"
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50"
           >
             {loading ? "..." : "Erstellen"}
           </button>
@@ -209,7 +209,7 @@ function WorkspaceSwitcher({
             onClick={() => { onSelect(null); setOpen(false); }}
             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
               activeWorkspace === null
-                ? "bg-yellow-50 text-neutral-900 font-semibold"
+                ? "bg-primary-50 text-neutral-900 font-semibold"
                 : "text-neutral-600 hover:bg-neutral-50"
             }`}
           >
@@ -222,7 +222,7 @@ function WorkspaceSwitcher({
               onClick={() => { onSelect(ws.id); setOpen(false); }}
               className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
                 activeWorkspace === ws.id
-                  ? "bg-yellow-50 text-neutral-900 font-semibold"
+                  ? "bg-primary-50 text-neutral-900 font-semibold"
                   : "text-neutral-600 hover:bg-neutral-50"
               }`}
             >
@@ -252,6 +252,7 @@ interface ProviderConfig {
 
 function WorkspaceSettings({ apiBase }: { apiBase: string }) {
   const [provider, setProvider] = useState<"openrouter" | "cortecs" | "">("");
+  const [savedProvider, setSavedProvider] = useState<"openrouter" | "cortecs" | "">("");
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
@@ -285,12 +286,15 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
     try {
       const config = await api<ProviderConfig>(`${apiBase}/provider`);
       if (config.provider) {
-        setProvider(config.provider as "openrouter" | "cortecs");
+        const p = config.provider as "openrouter" | "cortecs";
+        setProvider(p);
+        setSavedProvider(p);
         setMaskedKey(config.api_key_masked || null);
         setConfiguredAt(config.configured_at || null);
         loadModels();
       } else {
         setProvider("");
+        setSavedProvider("");
         setMaskedKey(null);
         setConfiguredAt(null);
         setModels([]);
@@ -320,6 +324,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
         method: "PUT",
         body: JSON.stringify({ provider, api_key: apiKey.trim() }),
       });
+      setSavedProvider(provider as "openrouter" | "cortecs");
       setMaskedKey(result.api_key_masked || null);
       setConfiguredAt(result.configured_at || null);
       setApiKey("");
@@ -354,6 +359,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
     try {
       await api(`${apiBase}/provider`, { method: "DELETE" });
       setProvider("");
+      setSavedProvider("");
       setMaskedKey(null);
       setConfiguredAt(null);
       setModels([]);
@@ -400,7 +406,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
                 onClick={() => { setProvider(p); setError(""); setSuccess(""); }}
                 className={`px-4 py-2.5 text-xs font-medium border rounded transition-colors ${
                   provider === p
-                    ? "bg-yellow-50 border-yellow-400 text-neutral-900 font-bold"
+                    ? "bg-primary-50 border-primary-400 text-neutral-900 font-bold"
                     : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                 }`}
               >
@@ -414,8 +420,9 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
           <div className="space-y-4">
             <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">API-Schlüssel</label>
 
-            {maskedKey && (
+            {maskedKey && provider === savedProvider && (
               <div className="flex items-center gap-3 p-3 bg-neutral-50 border border-neutral-200 rounded">
+                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wide">{savedProvider === "cortecs" ? "Cortecs AI" : "OpenRouter"}</span>
                 <span className="text-xs text-neutral-700 font-mono">{maskedKey}</span>
                 {configuredAt && (
                   <span className="text-[10px] text-neutral-400">
@@ -443,14 +450,20 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
               </div>
             )}
 
+            {maskedKey && provider !== savedProvider && (
+              <p className="text-xs text-neutral-500">
+                Aktuell ist <span className="font-semibold">{savedProvider === "cortecs" ? "Cortecs AI" : "OpenRouter"}</span> konfiguriert. Gib einen Schlüssel für <span className="font-semibold">{provider === "cortecs" ? "Cortecs AI" : "OpenRouter"}</span> ein, um den Anbieter zu wechseln.
+              </p>
+            )}
+
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
                   type={showKey ? "text" : "password"}
                   value={apiKey}
                   onChange={(e) => { setApiKey(e.target.value); setError(""); setSuccess(""); }}
-                  placeholder={maskedKey ? "Neuen Schlüssel eingeben..." : "API-Schlüssel eingeben..."}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono pr-9 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+                  placeholder={maskedKey && provider === savedProvider ? "Neuen Schlüssel eingeben..." : "API-Schlüssel eingeben..."}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono pr-9 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
                 />
                 <button
                   type="button"
@@ -463,7 +476,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
               <button
                 onClick={handleSave}
                 disabled={saving || !provider || !apiKey.trim()}
-                className="px-4 py-2 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
                 {saving && <Loader2 className="w-3 h-3 animate-spin" />}
                 Speichern
@@ -481,7 +494,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
         )}
       </div>
 
-      {maskedKey && (
+      {maskedKey && provider === savedProvider && (
         <div className="border border-neutral-200 rounded bg-white shadow-sm overflow-hidden">
           <div className="p-4 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
             <div>
@@ -494,7 +507,7 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
                 value={modelFilter}
                 onChange={(e) => setModelFilter(e.target.value)}
                 placeholder="Modelle filtern..."
-                className="px-2.5 py-1.5 border border-neutral-200 rounded text-xs w-48 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+                className="px-2.5 py-1.5 border border-neutral-200 rounded text-xs w-48 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
               />
             )}
           </div>
@@ -596,14 +609,14 @@ export function DashboardPage() {
           <nav className="flex gap-4 text-xs font-medium text-neutral-500">
             <button
               onClick={() => setActiveTab("projekte")}
-              className={`h-12 flex items-center transition-colors ${activeTab === "projekte" ? "text-neutral-900 border-b-2 border-yellow-400" : "hover:text-neutral-900"}`}
+              className={`h-12 flex items-center transition-colors ${activeTab === "projekte" ? "text-neutral-900 border-b-2 border-primary-400" : "hover:text-neutral-900"}`}
             >
               Projekte
             </button>
             <button className="h-12 flex items-center hover:text-neutral-900 cursor-pointer">Datensätze</button>
             <button
               onClick={() => setActiveTab("einstellungen")}
-              className={`h-12 flex items-center transition-colors ${activeTab === "einstellungen" ? "text-neutral-900 border-b-2 border-yellow-400" : "hover:text-neutral-900"}`}
+              className={`h-12 flex items-center transition-colors ${activeTab === "einstellungen" ? "text-neutral-900 border-b-2 border-primary-400" : "hover:text-neutral-900"}`}
             >
               Einstellungen
             </button>
@@ -652,7 +665,7 @@ export function DashboardPage() {
               </div>
               <button
                 onClick={handleNewProject}
-                className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black hover:bg-yellow-500 transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded shadow-sm text-black hover:bg-primary-500 transition-colors flex items-center gap-2"
               >
                 <Plus className="w-3 h-3" />
                 Neues Projekt
@@ -680,7 +693,7 @@ export function DashboardPage() {
                     <Link key={project.id} to={`/project/${project.id}`} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-neutral-50 transition-colors group cursor-pointer block sm:grid">
                       <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
                         <div className="w-6 h-6 rounded-md bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-500 transition-colors">
-                          <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                          <div className="w-2 h-2 rounded-full bg-primary-500"></div>
                         </div>
                         <span className="font-semibold text-neutral-900 text-xs transition-colors truncate">{project.name}</span>
                       </div>
@@ -692,7 +705,7 @@ export function DashboardPage() {
                       <div className="hidden sm:block col-span-2 text-[11px] text-neutral-500">{formatTimeAgo(project.last_run)}</div>
                       <div className="hidden sm:flex col-span-2 justify-end">
                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold tracking-wide border border-neutral-200 bg-white text-neutral-700">
-                          <span className={`w-1.5 h-1.5 rounded-full ${project.status === 'Healthy' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${project.status === 'Healthy' ? 'bg-green-500' : 'bg-primary-500'}`}></span>
                           {project.status.toUpperCase()}
                         </span>
                       </div>

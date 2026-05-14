@@ -35,8 +35,8 @@ export function LoginPage() {
         <div className="w-full max-w-sm bg-white rounded border border-neutral-200 p-8 shadow-sm">
           {sent ? (
             <div className="text-center">
-              <div className="w-12 h-12 bg-yellow-50 border border-yellow-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-5 h-5 text-yellow-600" />
+              <div className="w-12 h-12 bg-primary-50 border border-primary-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-5 h-5 text-primary-600" />
               </div>
               <h2 className="text-xl font-bold tracking-tight text-neutral-900 mb-2">
                 E-Mail pr&uuml;fen
@@ -71,7 +71,7 @@ export function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoFocus
                     placeholder="you@company.com"
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-yellow-400 focus:bg-white transition-all text-neutral-900 font-mono"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-400 focus:bg-white transition-all text-neutral-900 font-mono"
                     required
                   />
                 </div>
@@ -79,7 +79,7 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-yellow-400 border border-yellow-500 text-black font-bold text-xs py-2 rounded mt-2 hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2 group shadow-sm disabled:opacity-50"
+                  className="w-full bg-primary-400 border border-primary-500 text-black font-bold text-xs py-2 rounded mt-2 hover:bg-primary-500 transition-colors flex items-center justify-center gap-2 group shadow-sm disabled:opacity-50"
                 >
                   {loading ? "Wird gesendet..." : "Anmeldelink senden"}
                   <ArrowRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />

@@ -109,7 +109,7 @@ export function ProjectDetailPage() {
           )}
           <button
             onClick={() => setShowRunModal(true)}
-            className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-yellow-500 transition-colors"
+            className="px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-primary-500 transition-colors"
           >
             <PlayCircle className="w-3.5 h-3.5" />
             Evaluierung starten
@@ -327,7 +327,7 @@ function NewRunModal({
               <select
                 value={modelTag}
                 onChange={(e) => setModelTag(e.target.value)}
-                className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 pr-8"
+                className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 pr-8"
               >
                 <option value="">Modell auswählen...</option>
                 {availableModels.map((m) => (
@@ -342,7 +342,7 @@ function NewRunModal({
               value={modelTag}
               onChange={(e) => setModelTag(e.target.value)}
               placeholder="z.B. openai/gpt-4o"
-              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
             />
           )}
         </div>
@@ -354,7 +354,7 @@ function NewRunModal({
             onChange={(e) => setSystemPrompt(e.target.value)}
             placeholder="Optional: System-Prompt eingeben..."
             rows={3}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
           />
         </div>
 
@@ -365,7 +365,7 @@ function NewRunModal({
             onChange={(e) => setUserInput(e.target.value)}
             placeholder="Benutzereingabe..."
             rows={3}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
           />
         </div>
 
@@ -378,7 +378,7 @@ function NewRunModal({
           <button
             onClick={handleSubmit}
             disabled={submitting || !modelTag.trim()}
-            className="flex-1 px-3 py-2 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="flex-1 px-3 py-2 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
             Starten
@@ -430,7 +430,7 @@ function DefaultModelModal({
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 pr-8"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 pr-8"
           >
             <option value="">Kein Standardmodell</option>
             {availableModels.map((m) => (
@@ -446,7 +446,7 @@ function DefaultModelModal({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {saving && <Loader2 className="w-3 h-3 animate-spin" />}
             Speichern
