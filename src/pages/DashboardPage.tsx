@@ -50,10 +50,8 @@ export function DashboardPage() {
       <header className="h-12 border-b border-neutral-200 flex items-center justify-between px-4 bg-white sticky top-0 z-10 w-full">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900">
-            <div className="w-5 h-5 bg-yellow-400 rounded-sm flex items-center justify-center">
-              <div className="w-2 h-2 bg-black rotate-45"></div>
-            </div>
-            SYNTAX.AI
+            <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
+            HUMAN IN THE LOOP
           </Link>
           <nav className="flex gap-4 text-xs font-medium text-neutral-500">
             <Link to="/dashboard" className="text-neutral-900 border-b-2 border-yellow-400 h-12 flex items-center">Projects</Link>

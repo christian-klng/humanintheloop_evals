@@ -26,10 +26,8 @@ export function LoginPage() {
     <div className="min-h-screen flex flex-col bg-[#FCFCFC] text-[#1A1A1A]">
       <div className="p-6">
         <Link to="/" className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900 w-fit">
-          <div className="w-5 h-5 bg-yellow-400 rounded-sm flex items-center justify-center">
-            <div className="w-2 h-2 bg-black rotate-45"></div>
-          </div>
-          SYNTAX.AI
+          <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
+          HUMAN IN THE LOOP
         </Link>
       </div>
 
