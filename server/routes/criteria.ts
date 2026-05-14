@@ -3,16 +3,23 @@ import { query } from "../db.js";
 
 const router = Router();
 
-async function verifyProjectOwner(projectId: string, userId: string): Promise<boolean> {
+async function canAccessProject(projectId: string, userId: string): Promise<boolean> {
   const { rows } = await query(
-    "SELECT 1 FROM projects WHERE id = $1 AND user_id = $2",
+    `SELECT 1 FROM projects p
+     WHERE p.id = $1 AND (
+       p.user_id = $2
+       OR EXISTS (
+         SELECT 1 FROM workspace_members wm
+         WHERE wm.workspace_id = p.workspace_id AND wm.user_id = $2
+       )
+     )`,
     [projectId, userId]
   );
   return rows.length > 0;
 }
 
 router.get("/projects/:id/criteria", async (req, res) => {
-  if (!(await verifyProjectOwner(req.params.id, req.userId!))) {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
@@ -24,7 +31,7 @@ router.get("/projects/:id/criteria", async (req, res) => {
 });
 
 router.post("/projects/:id/criteria", async (req, res) => {
-  if (!(await verifyProjectOwner(req.params.id, req.userId!))) {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
@@ -42,7 +49,7 @@ router.post("/projects/:id/criteria", async (req, res) => {
 });
 
 router.patch("/projects/:id/criteria/:cid", async (req, res) => {
-  if (!(await verifyProjectOwner(req.params.id, req.userId!))) {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
@@ -64,7 +71,7 @@ router.patch("/projects/:id/criteria/:cid", async (req, res) => {
 });
 
 router.delete("/projects/:id/criteria/:cid", async (req, res) => {
-  if (!(await verifyProjectOwner(req.params.id, req.userId!))) {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });
     return;
   }

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
 import path from "path";
@@ -7,6 +8,7 @@ import authRouter from "./routes/auth.js";
 import projectsRouter from "./routes/projects.js";
 import criteriaRouter from "./routes/criteria.js";
 import runsRouter from "./routes/runs.js";
+import workspacesRouter from "./routes/workspaces.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const app = express();
@@ -24,6 +26,7 @@ app.use("/api", requireAuth);
 app.use("/api", projectsRouter);
 app.use("/api", criteriaRouter);
 app.use("/api", runsRouter);
+app.use("/api", workspacesRouter);
 
 // Production: serve Vite build
 if (process.env.NODE_ENV === "production") {
