@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info } from "lucide-react";
+import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info, X, Loader2, ChevronDown } from "lucide-react";
 import { api } from "../lib/api";
 
 interface Project {
   id: string;
   name: string;
   status: string;
+  workspace_id: string | null;
+  default_model: string | null;
+}
+
+interface ProviderModel {
+  id: string;
+  name: string;
 }
 
 interface Criterion {
@@ -42,6 +49,9 @@ export function ProjectDetailPage() {
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [latestRun, setLatestRun] = useState<EvalRun | null>(null);
   const [loading, setLoading] = useState(true);
+  const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
+  const [showRunModal, setShowRunModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -55,6 +65,11 @@ export function ProjectDetailPage() {
       if (runs.length > 0) {
         const run = await api<EvalRun>(`/api/projects/${id}/runs/${runs[0].id}`);
         setLatestRun(run);
+      }
+      if (proj.workspace_id) {
+        api<{ models: ProviderModel[] }>(`/api/workspaces/${proj.workspace_id}/provider/models`)
+          .then((data) => setAvailableModels(data.models || []))
+          .catch(() => {});
       }
     }).finally(() => setLoading(false));
   }, [id]);
@@ -82,11 +97,19 @@ export function ProjectDetailPage() {
           </span>
         </div>
         <div className="flex gap-2">
-          <button className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700">
-            <Settings2 className="w-3.5 h-3.5" />
-            Konfigurieren
-          </button>
-          <button className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-yellow-500 transition-colors">
+          {project.workspace_id && availableModels.length > 0 && (
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              {project.default_model ? `Modell: ${project.default_model.split("/").pop()}` : "Standardmodell wählen"}
+            </button>
+          )}
+          <button
+            onClick={() => setShowRunModal(true)}
+            className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-yellow-500 transition-colors"
+          >
             <PlayCircle className="w-3.5 h-3.5" />
             Evaluierung starten
           </button>
@@ -213,6 +236,220 @@ export function ProjectDetailPage() {
               <p className="text-xs text-neutral-400 text-center py-8">Noch keine Evaluierungsergebnisse</p>
             )}
           </div>
+        </div>
+      </div>
+
+      {showRunModal && (
+        <NewRunModal
+          projectId={project.id}
+          defaultModel={project.default_model}
+          availableModels={availableModels}
+          onClose={() => setShowRunModal(false)}
+          onCreated={(run) => {
+            setLatestRun(run);
+            setShowRunModal(false);
+          }}
+        />
+      )}
+
+      {showConfigModal && (
+        <DefaultModelModal
+          projectId={project.id}
+          currentModel={project.default_model}
+          availableModels={availableModels}
+          onClose={() => setShowConfigModal(false)}
+          onSaved={(model) => {
+            setProject({ ...project, default_model: model });
+            setShowConfigModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewRunModal({
+  projectId,
+  defaultModel,
+  availableModels,
+  onClose,
+  onCreated,
+}: {
+  projectId: string;
+  defaultModel: string | null;
+  availableModels: ProviderModel[];
+  onClose: () => void;
+  onCreated: (run: EvalRun) => void;
+}) {
+  const [modelTag, setModelTag] = useState(defaultModel || "");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [userInput, setUserInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!modelTag.trim()) {
+      setError("Bitte wähle ein Modell aus.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const run = await api<EvalRun>(`/api/projects/${projectId}/runs`, {
+        method: "POST",
+        body: JSON.stringify({
+          model_tag: modelTag.trim(),
+          system_prompt: systemPrompt,
+          user_input: userInput,
+        }),
+      });
+      onCreated(run);
+    } catch (err: any) {
+      setError(err.message || "Fehler beim Starten.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-neutral-900">Evaluierung starten</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">Modell</label>
+          {availableModels.length > 0 ? (
+            <div className="relative">
+              <select
+                value={modelTag}
+                onChange={(e) => setModelTag(e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 pr-8"
+              >
+                <option value="">Modell auswählen...</option>
+                {availableModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.id}{m.name !== m.id ? ` — ${m.name}` : ""}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={modelTag}
+              onChange={(e) => setModelTag(e.target.value)}
+              placeholder="z.B. openai/gpt-4o"
+              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">System-Prompt</label>
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="Optional: System-Prompt eingeben..."
+            rows={3}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+          />
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">Benutzereingabe</label>
+          <textarea
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            placeholder="Benutzereingabe..."
+            rows={3}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
+
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 px-3 py-2 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !modelTag.trim()}
+            className="flex-1 px-3 py-2 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
+            Starten
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DefaultModelModal({
+  projectId,
+  currentModel,
+  availableModels,
+  onClose,
+  onSaved,
+}: {
+  projectId: string;
+  currentModel: string | null;
+  availableModels: ProviderModel[];
+  onClose: () => void;
+  onSaved: (model: string | null) => void;
+}) {
+  const [selectedModel, setSelectedModel] = useState(currentModel || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api(`/api/projects/${projectId}/default-model`, {
+        method: "PATCH",
+        body: JSON.stringify({ default_model: selectedModel || null }),
+      });
+      onSaved(selectedModel || null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-neutral-900">Standardmodell</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
+        </div>
+        <p className="text-xs text-neutral-500 mb-3">Wird bei neuen Evaluierungen vorausgewählt.</p>
+        <div className="relative">
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 pr-8"
+          >
+            <option value="">Kein Standardmodell</option>
+            {availableModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.id}</option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+            Speichern
+          </button>
         </div>
       </div>
     </div>

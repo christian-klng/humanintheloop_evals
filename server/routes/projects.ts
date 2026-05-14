@@ -118,6 +118,19 @@ router.patch("/projects/:id", async (req, res) => {
   res.json(rows[0]);
 });
 
+router.patch("/projects/:id/default-model", async (req, res) => {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const { default_model } = req.body;
+  const { rows } = await query(
+    "UPDATE projects SET default_model = $1, updated_at = now() WHERE id = $2 RETURNING *",
+    [default_model || null, req.params.id]
+  );
+  res.json(rows[0]);
+});
+
 router.delete("/projects/:id", async (req, res) => {
   if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });

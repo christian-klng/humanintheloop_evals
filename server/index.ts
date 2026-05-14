@@ -9,6 +9,7 @@ import projectsRouter from "./routes/projects.js";
 import criteriaRouter from "./routes/criteria.js";
 import runsRouter from "./routes/runs.js";
 import workspacesRouter from "./routes/workspaces.js";
+import providersRouter from "./routes/providers.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const app = express();
@@ -27,6 +28,7 @@ app.use("/api", projectsRouter);
 app.use("/api", criteriaRouter);
 app.use("/api", runsRouter);
 app.use("/api", workspacesRouter);
+app.use("/api", providersRouter);
 
 // Production: serve Vite build
 if (process.env.NODE_ENV === "production") {
