@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { decrypt } from "../lib/crypto.js";
-import { streamChatCompletion, type ProviderType, type ChatMessage } from "../lib/providers.js";
+import { streamChatCompletion, chatCompletion, type ProviderType, type ChatMessage } from "../lib/providers.js";
 
 const router = Router();
 
@@ -130,10 +130,83 @@ router.post("/projects/:id/runs", async (req, res) => {
 
     const latencyMs = Date.now() - startTime;
     await query(
-      `UPDATE eval_runs SET output_text = $1, latency_ms = $2, status = 'completed' WHERE id = $3`,
+      `UPDATE eval_runs SET output_text = $1, latency_ms = $2 WHERE id = $3`,
       [fullOutput, latencyMs, run.id]
     );
     res.write(`data: ${JSON.stringify({ done: true, run_id: run.id, latency_ms: latencyMs })}\n\n`);
+
+    // --- Phase 2: Judge evaluation ---
+    const { rows: projRows } = await query(
+      "SELECT judge_model, eval_system_prompt, eval_user_prompt FROM projects WHERE id = $1",
+      [req.params.id]
+    );
+    const proj = projRows[0];
+
+    if (proj?.judge_model && proj.eval_user_prompt) {
+      res.write(`data: ${JSON.stringify({ eval_started: true })}\n\n`);
+
+      try {
+        const { rows: criteriaRows } = await query(
+          "SELECT id, title, description, weight FROM criteria WHERE project_id = $1 ORDER BY sort_order",
+          [req.params.id]
+        );
+
+        const criteriaText = criteriaRows
+          .map((c: any) => `- ${c.title} (Gewichtung: ${c.weight}%): ${c.description}`)
+          .join("\n");
+
+        const evalUserPrompt = proj.eval_user_prompt
+          .replace(/\{\{output\}\}/g, fullOutput)
+          .replace(/\{\{criteria\}\}/g, criteriaText);
+        const evalSystemPrompt = (proj.eval_system_prompt || "")
+          .replace(/\{\{output\}\}/g, fullOutput)
+          .replace(/\{\{criteria\}\}/g, criteriaText);
+
+        const evalMessages: ChatMessage[] = [];
+        if (evalSystemPrompt) evalMessages.push({ role: "system", content: evalSystemPrompt });
+        evalMessages.push({ role: "user", content: evalUserPrompt });
+
+        const evalResponse = await chatCompletion(
+          providerInfo.provider, providerInfo.apiKey, proj.judge_model, evalMessages
+        );
+
+        // Parse JSON — handle markdown code blocks
+        const jsonMatch = evalResponse.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, evalResponse];
+        const parsed = JSON.parse(jsonMatch[1]!.trim());
+
+        const evalScores: { criteria_title: string; score: number; note?: string }[] = parsed.scores || [];
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        for (const s of evalScores) {
+          const criterion = criteriaRows.find((c: any) => c.title === s.criteria_title);
+          if (!criterion) continue;
+
+          const score = Math.max(0, Math.min(1, Number(s.score) || 0));
+          await query(
+            `INSERT INTO eval_scores (eval_run_id, criteria_id, score, note)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (eval_run_id, criteria_id) DO UPDATE SET score = $3, note = $4`,
+            [run.id, criterion.id, score, s.note || null]
+          );
+          weightedSum += score * criterion.weight;
+          totalWeight += criterion.weight;
+        }
+
+        const overallScore = totalWeight > 0 ? (weightedSum / totalWeight) * 100 : 0;
+        await query(
+          `UPDATE eval_runs SET overall_score = $1, summary_text = $2, status = 'completed' WHERE id = $3`,
+          [overallScore.toFixed(2), parsed.summary || null, run.id]
+        );
+
+        res.write(`data: ${JSON.stringify({ eval_done: true, run_id: run.id })}\n\n`);
+      } catch (evalErr: any) {
+        await query(`UPDATE eval_runs SET status = 'completed' WHERE id = $1`, [run.id]);
+        res.write(`data: ${JSON.stringify({ eval_error: evalErr.message || "Evaluierung fehlgeschlagen" })}\n\n`);
+      }
+    } else {
+      await query(`UPDATE eval_runs SET status = 'completed' WHERE id = $1`, [run.id]);
+    }
   } catch (err: any) {
     await query(`UPDATE eval_runs SET status = 'failed' WHERE id = $1`, [run.id]);
     res.write(`data: ${JSON.stringify({ error: err.message || "LLM-Aufruf fehlgeschlagen" })}\n\n`);

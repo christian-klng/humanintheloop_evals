@@ -9,6 +9,9 @@ interface Project {
   status: string;
   workspace_id: string | null;
   default_model: string | null;
+  judge_model: string | null;
+  eval_system_prompt: string;
+  eval_user_prompt: string;
 }
 
 interface ProviderModel {
@@ -52,10 +55,12 @@ export function ProjectDetailPage() {
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
   const [showCriterionModal, setShowCriterionModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showEvalConfigModal, setShowEvalConfigModal] = useState(false);
 
   const [systemPrompt, setSystemPrompt] = useState("");
   const [userPrompt, setUserPrompt] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
   const [streamingOutput, setStreamingOutput] = useState("");
   const [streamLatency, setStreamLatency] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
@@ -84,8 +89,13 @@ export function ProjectDetailPage() {
     }).finally(() => setLoading(false));
   }, [id]);
 
-  const canStart = criteria.length > 0 && userPrompt.trim().length > 0 && !!project?.default_model;
   const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
+  const canStart = criteria.length > 0
+    && totalWeight === 100
+    && userPrompt.trim().length > 0
+    && !!project?.default_model
+    && !!project?.judge_model
+    && !!project?.eval_user_prompt?.trim();
 
   const handleStartEval = async () => {
     if (!project || !canStart) return;
@@ -143,6 +153,13 @@ export function ProjectDetailPage() {
             }
             if (parsed.done) {
               setStreamLatency(parsed.latency_ms);
+              setStreaming(false);
+            }
+            if (parsed.eval_started) {
+              setEvaluating(true);
+            }
+            if (parsed.eval_done || parsed.eval_error) {
+              setEvaluating(false);
               const runId = parsed.run_id;
               if (runId) {
                 const run = await api<EvalRun>(`/api/projects/${project.id}/runs/${runId}`);
@@ -161,6 +178,7 @@ export function ProjectDetailPage() {
       setStreamingOutput((prev) => prev + `\n\n[Fehler: ${err.message}]`);
     } finally {
       setStreaming(false);
+      setEvaluating(false);
     }
   };
 
@@ -185,7 +203,7 @@ export function ProjectDetailPage() {
           <span className="text-neutral-300">/</span>
           <span className="font-semibold text-neutral-900">{project.name}</span>
           <span className="ml-2 px-1.5 py-0.5 bg-neutral-100 text-[10px] rounded text-neutral-500 font-bold uppercase tracking-widest">
-            {streaming ? "LÄUFT" : latestRun?.status?.toUpperCase() || "KEINE LÄUFE"}
+            {evaluating ? "EVALUIERUNG" : streaming ? "LÄUFT" : latestRun?.status?.toUpperCase() || "KEINE LÄUFE"}
           </span>
         </div>
         <div className="flex gap-2">
@@ -200,17 +218,20 @@ export function ProjectDetailPage() {
           )}
           <button
             onClick={handleStartEval}
-            disabled={!canStart || streaming}
+            disabled={!canStart || streaming || evaluating}
             title={
               !project.default_model ? "Standardmodell muss gesetzt sein" :
+              !project.judge_model ? "Judge-Modell muss gesetzt sein" :
+              !project.eval_user_prompt?.trim() ? "Evaluierungs-Prompt muss gesetzt sein" :
               criteria.length === 0 ? "Mindestens ein Kriterium erforderlich" :
+              totalWeight !== 100 ? "Kriterien-Gewichtung muss 100 ergeben" :
               !userPrompt.trim() ? "Prompt des Nutzers darf nicht leer sein" :
               undefined
             }
             className="px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {streaming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
-            {streaming ? "Läuft…" : "Evaluierung starten"}
+            {(streaming || evaluating) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
+            {evaluating ? "Evaluiert…" : streaming ? "Läuft…" : "Evaluierung starten"}
           </button>
         </div>
       </header>
@@ -308,9 +329,17 @@ export function ProjectDetailPage() {
         <div className="flex-[1.3] min-w-[320px] flex flex-col bg-neutral-50/50">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">04. Evaluierung</span>
+            <button onClick={() => setShowEvalConfigModal(true)} className="text-neutral-400 hover:text-neutral-900 transition-colors">
+              <Settings2 className="w-3.5 h-3.5" />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
-            {overallScore != null ? (
+            {evaluating ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="w-6 h-6 text-primary-400 animate-spin" />
+                <p className="text-xs text-neutral-500">Evaluierung läuft…</p>
+              </div>
+            ) : overallScore != null ? (
               <>
                 <div className="p-4 bg-white border border-green-200 rounded-lg flex items-center gap-4 mb-6 shadow-sm">
                   <div className="w-12 h-12 rounded-full border-4 border-green-500 flex items-center justify-center">
@@ -376,6 +405,19 @@ export function ProjectDetailPage() {
           onSaved={(model) => {
             setProject({ ...project, default_model: model });
             setShowConfigModal(false);
+          }}
+        />
+      )}
+
+      {showEvalConfigModal && (
+        <EvalConfigModal
+          projectId={project.id}
+          project={project}
+          availableModels={availableModels}
+          onClose={() => setShowEvalConfigModal(false)}
+          onSaved={(updated) => {
+            setProject({ ...project, ...updated });
+            setShowEvalConfigModal(false);
           }}
         />
       )}
@@ -491,6 +533,144 @@ function AddCriterionModal({
           >
             {saving && <Loader2 className="w-3 h-3 animate-spin" />}
             Hinzufügen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EvalConfigModal({
+  projectId,
+  project,
+  availableModels,
+  onClose,
+  onSaved,
+}: {
+  projectId: string;
+  project: Project;
+  availableModels: ProviderModel[];
+  onClose: () => void;
+  onSaved: (updated: Partial<Project>) => void;
+}) {
+  const [judgeModel, setJudgeModel] = useState(project.judge_model || "");
+  const [evalSystemPrompt, setEvalSystemPrompt] = useState(project.eval_system_prompt || "");
+  const [evalUserPrompt, setEvalUserPrompt] = useState(project.eval_user_prompt || "");
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return availableModels;
+    const q = search.toLowerCase();
+    return availableModels.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
+    );
+  }, [search, availableModels]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api(`/api/projects/${projectId}/eval-config`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          judge_model: judgeModel || null,
+          eval_system_prompt: evalSystemPrompt,
+          eval_user_prompt: evalUserPrompt,
+        }),
+      });
+      onSaved({
+        judge_model: judgeModel || null,
+        eval_system_prompt: evalSystemPrompt,
+        eval_user_prompt: evalUserPrompt,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 flex flex-col max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-neutral-900">Evaluierungs-Konfiguration</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">
+              Judge-Modell <span className="text-red-400">*</span>
+            </label>
+            <div className="relative mb-1.5">
+              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Modell suchen…"
+                className="w-full pl-8 pr-3 py-2 border border-neutral-300 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+              />
+            </div>
+            <div className="border border-neutral-200 rounded max-h-36 overflow-y-auto">
+              {filtered.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setJudgeModel(m.id)}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-neutral-50 border-b border-neutral-100 last:border-0 ${judgeModel === m.id ? "bg-primary-50 font-semibold" : ""}`}
+                >
+                  {judgeModel === m.id && <Check className="w-3 h-3 text-primary-600 shrink-0" />}
+                  <span className={judgeModel === m.id ? "" : "pl-5"}>
+                    {m.name !== m.id ? m.name : m.id}
+                    {m.name !== m.id && <span className="text-neutral-400 ml-1.5 font-mono">{m.id}</span>}
+                  </span>
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <div className="px-3 py-3 text-xs text-neutral-400 text-center">Keine Modelle gefunden</div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">System-Prompt</label>
+            <textarea
+              value={evalSystemPrompt}
+              onChange={(e) => setEvalSystemPrompt(e.target.value)}
+              placeholder="Optional: System-Prompt für den Judge…"
+              rows={3}
+              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">
+              Evaluierungs-Prompt <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              value={evalUserPrompt}
+              onChange={(e) => setEvalUserPrompt(e.target.value)}
+              placeholder={"Bewerte die Ausgabe anhand der Kriterien:\n\n{{criteria}}\n\nAusgabe:\n{{output}}\n\nAntworte als JSON…"}
+              rows={8}
+              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            />
+            <p className="text-[10px] text-neutral-400">
+              Verfügbare Variablen: <code className="bg-neutral-100 px-1 rounded">{"{{output}}"}</code> <code className="bg-neutral-100 px-1 rounded">{"{{criteria}}"}</code>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !judgeModel || !evalUserPrompt.trim()}
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+            Speichern
           </button>
         </div>
       </div>

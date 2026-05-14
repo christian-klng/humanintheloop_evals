@@ -73,3 +73,28 @@ export async function streamChatCompletion(
 
   return res;
 }
+
+export async function chatCompletion(
+  provider: ProviderType,
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+): Promise<string> {
+  const baseUrl = getProviderBaseUrl(provider);
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Provider API error (${res.status}): ${body.slice(0, 200)}`);
+  }
+
+  const json = await res.json();
+  return json.choices?.[0]?.message?.content || "";
+}
