@@ -12,7 +12,8 @@ export function LandingPage() {
       {/* Hero Section */}
       <main className="flex-1 w-full max-w-5xl flex flex-col items-center justify-center text-center px-6 mt-32 relative z-10">
         <h1 className="text-6xl sm:text-7xl font-bold tracking-tight text-[#1A1A1A] leading-[1.1] mb-6">
-          Human in the Loop
+          Human in the Loop <br />
+          <span className="text-neutral-400">Academy</span>
         </h1>
         <p className="text-lg sm:text-xl text-neutral-500 max-w-2xl font-light mb-10 leading-relaxed">
           Bring software engineering rigor to prompt engineering. Test, evaluate, and version your LLM outputs in one beautiful workspace.
@@ -45,9 +46,7 @@ export function LandingPage() {
       <footer className="w-full bg-white border-t border-neutral-200 mt-auto flex flex-col items-center relative z-20">
         <div className="w-full max-w-6xl px-6 py-16">
           <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-neutral-900 mb-4">
-            <div className="w-5 h-5 bg-yellow-400 rounded-sm flex items-center justify-center">
-              <div className="w-2 h-2 bg-black rotate-45"></div>
-            </div>
+            <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
             HUMAN IN THE LOOP
           </div>
           <p className="text-xs text-neutral-500 max-w-xs leading-relaxed">
