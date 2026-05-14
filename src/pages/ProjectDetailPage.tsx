@@ -1,0 +1,247 @@
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info } from "lucide-react";
+import { api } from "../lib/api";
+
+interface Project {
+  id: string;
+  name: string;
+  status: string;
+}
+
+interface Criterion {
+  id: string;
+  title: string;
+  description: string;
+  weight: number;
+}
+
+interface EvalScore {
+  criteria_title: string;
+  criteria_weight: number;
+  score: number;
+  note: string | null;
+}
+
+interface EvalRun {
+  id: string;
+  model_tag: string;
+  system_prompt: string;
+  user_input: string;
+  output_text: string | null;
+  latency_ms: number | null;
+  overall_score: number | null;
+  summary_text: string | null;
+  status: string;
+  scores?: EvalScore[];
+}
+
+export function ProjectDetailPage() {
+  const { id } = useParams();
+  const [project, setProject] = useState<Project | null>(null);
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [latestRun, setLatestRun] = useState<EvalRun | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      api<Project>(`/api/projects/${id}`),
+      api<Criterion[]>(`/api/projects/${id}/criteria`),
+      api<EvalRun[]>(`/api/projects/${id}/runs?limit=1`),
+    ]).then(async ([proj, crit, runs]) => {
+      setProject(proj);
+      setCriteria(crit);
+      if (runs.length > 0) {
+        const run = await api<EvalRun>(`/api/projects/${id}/runs/${runs[0].id}`);
+        setLatestRun(run);
+      }
+    }).finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Loading...</div>;
+  }
+
+  if (!project) {
+    return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Project not found</div>;
+  }
+
+  const overallScore = latestRun?.overall_score;
+  const scores = latestRun?.scores || [];
+
+  return (
+    <div className="h-screen flex flex-col bg-white overflow-hidden text-sm">
+      <header className="h-12 border-b border-neutral-200 px-6 flex items-center justify-between bg-white z-10">
+        <div className="flex items-center gap-2 text-xs">
+          <Link to="/dashboard" className="text-neutral-400 hover:text-neutral-600 transition-colors">Projects</Link>
+          <span className="text-neutral-300">/</span>
+          <span className="font-semibold text-neutral-900">{project.name}</span>
+          <span className="ml-2 px-1.5 py-0.5 bg-neutral-100 text-[10px] rounded text-neutral-500 font-bold uppercase tracking-widest">
+            {latestRun?.status?.toUpperCase() || "NO RUNS"}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700">
+            <Settings2 className="w-3.5 h-3.5" />
+            Configure
+          </button>
+          <button className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-yellow-500 transition-colors">
+            <PlayCircle className="w-3.5 h-3.5" />
+            Run Evaluation
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 w-full bg-[#FCFCFC] flex overflow-hidden divide-x divide-neutral-200">
+        {/* Column 1: Criteria */}
+        <div className="w-[300px] shrink-0 flex flex-col bg-white">
+          <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">01. Criteria</span>
+            <button className="text-neutral-400 hover:text-neutral-900 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            {criteria.length === 0 ? (
+              <p className="text-xs text-neutral-400 text-center py-8">No criteria defined yet</p>
+            ) : (
+              criteria.map((c) => (
+                <CriteriaCard key={c.id} title={c.title} desc={c.description} weight={`${c.weight}%`} />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Column 2: Prompts */}
+        <div className="flex-[1.2] min-w-[320px] flex flex-col bg-white">
+          <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">02. Input Prompt</span>
+            {latestRun && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
+                {latestRun.model_tag.toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+            {latestRun ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase">System</label>
+                  <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-40 overflow-y-auto bg-white">
+                    {latestRun.system_prompt || "No system prompt"}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase">User / Inputs</label>
+                  <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-32 overflow-y-auto bg-white">
+                    {latestRun.user_input || "No user input"}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-neutral-400 text-center py-8">No runs yet. Click "Run Evaluation" to get started.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Column 3: Generated Result */}
+        <div className="flex-[1.1] min-w-[300px] flex flex-col bg-white">
+          <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">03. Output</span>
+            {latestRun?.latency_ms && (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                <span className="text-[10px] text-neutral-500 font-mono">{latestRun.latency_ms}ms</span>
+              </div>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+            {latestRun?.output_text ? (
+              <div className="bg-white border border-neutral-200 rounded p-4 h-full max-h-96 overflow-y-auto leading-relaxed text-xs text-neutral-800 shadow-inner whitespace-pre-wrap">
+                {latestRun.output_text}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-400 text-center py-8">No output yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Column 4: Evaluation Results */}
+        <div className="flex-[1.3] min-w-[320px] flex flex-col bg-neutral-50/50">
+          <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
+            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">04. Evaluation</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
+            {overallScore != null ? (
+              <>
+                <div className="p-4 bg-white border border-green-200 rounded-lg flex items-center gap-4 mb-6 shadow-sm">
+                  <div className="w-12 h-12 rounded-full border-4 border-green-500 flex items-center justify-center">
+                    <span className="text-xs font-bold text-neutral-900">{Math.round(Number(overallScore))}%</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-neutral-900">Overall {Number(overallScore) >= 80 ? "Pass" : "Needs Review"}</p>
+                    <p className="text-[10px] text-neutral-500">Confidence: {Number(overallScore) >= 90 ? "High" : Number(overallScore) >= 70 ? "Medium" : "Low"}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {scores.map((s, i) => (
+                    <ResultItem
+                      key={i}
+                      title={s.criteria_title}
+                      score={Number(s.score)}
+                      note={s.note || undefined}
+                      icon={Number(s.score) >= 0.9
+                        ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        : <AlertCircle className="w-4 h-4 text-orange-500" />
+                      }
+                    />
+                  ))}
+                </div>
+
+                {latestRun?.summary_text && (
+                  <div className="mt-8 border border-neutral-200 rounded p-4 bg-white">
+                    <div className="flex items-center gap-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                      <Info className="w-3.5 h-3.5" /> Summary
+                    </div>
+                    <p className="text-neutral-700 text-xs leading-relaxed">
+                      {latestRun.summary_text}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-neutral-400 text-center py-8">No evaluation results yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CriteriaCard({ title, desc, weight }: React.ComponentProps<"div"> & { title: string; desc: string; weight: string }) {
+  return (
+    <div className="p-3 border border-neutral-200 rounded bg-white hover:border-neutral-300 transition-all cursor-default">
+      <div className="flex justify-between items-start mb-1">
+        <h3 className="font-semibold text-neutral-900 text-xs">{title}</h3>
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-neutral-500 border border-neutral-200 bg-neutral-50 font-mono tracking-widest">{weight}</span>
+      </div>
+      <p className="text-[10px] text-neutral-500 leading-snug">{desc}</p>
+    </div>
+  );
+}
+
+function ResultItem({ title, score, note, icon }: React.ComponentProps<"div"> & { title: string; score: number; note?: string; icon: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between p-2 bg-white rounded border border-neutral-200">
+      <div className="flex items-center gap-2">
+        {icon}
+        <div className="flex flex-col">
+          <span className="font-semibold text-neutral-800 text-xs">{title}</span>
+          {note && <span className="text-[10px] text-neutral-500">{note}</span>}
+        </div>
+      </div>
+      <span className={`text-[11px] font-bold font-mono ${score >= 0.9 ? 'text-green-600' : 'text-neutral-600'}`}>{score.toFixed(1)}</span>
+    </div>
+  );
+}
