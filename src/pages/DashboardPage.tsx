@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Plus, Users, LogIn, Copy, Check, ChevronDown } from "lucide-react";
+import { Plus, Users, Copy, Check, ChevronDown } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
@@ -196,15 +196,15 @@ function WorkspaceSwitcher({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors text-xs font-medium text-neutral-800"
+        className="flex items-center gap-2 h-12 text-sm font-semibold tracking-tight text-neutral-900 hover:text-neutral-600 transition-colors"
       >
-        {current ? <Users className="w-3.5 h-3.5 text-neutral-500" /> : null}
+        <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
         {label}
-        <ChevronDown className={`w-3 h-3 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 py-1">
+        <div className="absolute top-full left-0 mt-0 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 py-1">
           <button
             onClick={() => { onSelect(null); setOpen(false); }}
             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
@@ -301,17 +301,31 @@ export function DashboardPage() {
     <div className="min-h-screen bg-[#FCFCFC] text-[#1A1A1A]">
       <header className="h-12 border-b border-neutral-200 flex items-center justify-between px-4 bg-white sticky top-0 z-10 w-full">
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2 font-semibold text-sm tracking-tight text-neutral-900">
-            <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
-            HUMAN IN THE LOOP
-          </Link>
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            onSelect={handleSelectWorkspace}
+          />
           <nav className="flex gap-4 text-xs font-medium text-neutral-500">
             <Link to="/dashboard" className="text-neutral-900 border-b-2 border-yellow-400 h-12 flex items-center">Projekte</Link>
             <Link to="#" className="h-12 flex items-center hover:text-neutral-900 cursor-pointer">Datensätze</Link>
             <Link to="#" className="h-12 flex items-center hover:text-neutral-900 cursor-pointer">Einstellungen</Link>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+          >
+            Bereich erstellen
+          </button>
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+          >
+            Bereich beitreten
+          </button>
+          <div className="w-px h-5 bg-neutral-200" />
           <button onClick={logout} className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors">
             Abmelden
           </button>
@@ -320,42 +334,13 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Workspace switcher row */}
-        {workspaces.length > 0 && (
-          <div className="flex items-center justify-between mb-4">
-            <WorkspaceSwitcher
-              workspaces={workspaces}
-              activeWorkspace={activeWorkspace}
-              onSelect={handleSelectWorkspace}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
-              >
-                <Plus className="w-3 h-3" />
-                Bereich erstellen
-              </button>
-              <button
-                onClick={() => setShowJoinModal(true)}
-                className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
-              >
-                <LogIn className="w-3 h-3" />
-                Bereich beitreten
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-neutral-900">
-              {currentWorkspace ? currentWorkspace.name : "Meine Projekte"}
-            </h1>
+            <h1 className="text-xl font-bold tracking-tight text-neutral-900">Projekte</h1>
             <p className="text-sm text-neutral-500 mt-1">
               {currentWorkspace
                 ? "Projekte in diesem Arbeitsbereich."
-                : "Verwalte und überwache deine Evaluierungspipelines."}
+                : "Deine privaten Evaluierungspipelines."}
             </p>
             {currentWorkspace && (
               <div className="flex items-center gap-3 mt-2">
