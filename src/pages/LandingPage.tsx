@@ -16,7 +16,7 @@ export function LandingPage() {
           <span className="text-neutral-400">Academy</span>
         </h1>
         <p className="text-lg sm:text-xl text-neutral-500 max-w-2xl font-light mb-10 leading-relaxed">
-          Bring software engineering rigor to prompt engineering. Test, evaluate, and version your LLM outputs in one beautiful workspace.
+          Verbessere die Antworten von Gro&szlig;en Sprachmodellen mit wenigen Klicks. Von einem einfachen Prompt zu hochwertigen Automatisierungen. <span className="italic text-neutral-400">Diese Webseite ist im Aufbau.</span>
         </p>
       </main>
 
@@ -50,7 +50,7 @@ export function LandingPage() {
             HUMAN IN THE LOOP
           </div>
           <p className="text-xs text-neutral-500 max-w-xs leading-relaxed">
-            Bring software engineering rigor to your AI workflows. Test, evaluate, and version LLM outputs with absolute precision.
+            Verbessere die Antworten von Gro&szlig;en Sprachmodellen mit wenigen Klicks. Von einem einfachen Prompt zu hochwertigen Automatisierungen.
           </p>
         </div>
 
