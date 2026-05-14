@@ -50,8 +50,15 @@ export function ProjectDetailPage() {
   const [latestRun, setLatestRun] = useState<EvalRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
-  const [showRunModal, setShowRunModal] = useState(false);
+  const [showCriterionModal, setShowCriterionModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [userPrompt, setUserPrompt] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [streamingOutput, setStreamingOutput] = useState("");
+  const [streamLatency, setStreamLatency] = useState<number | null>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -65,6 +72,8 @@ export function ProjectDetailPage() {
       if (runs.length > 0) {
         const run = await api<EvalRun>(`/api/projects/${id}/runs/${runs[0].id}`);
         setLatestRun(run);
+        setSystemPrompt(run.system_prompt || "");
+        setUserPrompt(run.user_input || "");
       }
       const modelsUrl = proj.workspace_id
         ? `/api/workspaces/${proj.workspace_id}/provider/models`
@@ -74,6 +83,86 @@ export function ProjectDetailPage() {
         .catch(() => {});
     }).finally(() => setLoading(false));
   }, [id]);
+
+  const canStart = criteria.length > 0 && userPrompt.trim().length > 0 && !!project?.default_model;
+  const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
+
+  const handleStartEval = async () => {
+    if (!project || !canStart) return;
+    setStreaming(true);
+    setStreamingOutput("");
+    setStreamLatency(null);
+
+    try {
+      const res = await fetch(`/api/projects/${project.id}/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model_tag: project.default_model,
+          system_prompt: systemPrompt,
+          user_input: userPrompt,
+        }),
+      });
+
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Fehler: ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Kein Stream verfügbar");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.chunk) {
+              fullText += parsed.chunk;
+              setStreamingOutput(fullText);
+              outputRef.current?.scrollTo(0, outputRef.current.scrollHeight);
+            }
+            if (parsed.done) {
+              setStreamLatency(parsed.latency_ms);
+              const runId = parsed.run_id;
+              if (runId) {
+                const run = await api<EvalRun>(`/api/projects/${project.id}/runs/${runId}`);
+                setLatestRun(run);
+              }
+            }
+            if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+          } catch (e: any) {
+            if (e.message && !e.message.includes("JSON")) throw e;
+          }
+        }
+      }
+    } catch (err: any) {
+      setStreamingOutput((prev) => prev + `\n\n[Fehler: ${err.message}]`);
+    } finally {
+      setStreaming(false);
+    }
+  };
 
   if (loading) {
     return <div className="h-screen flex items-center justify-center text-xs text-neutral-400">Laden...</div>;
@@ -85,6 +174,8 @@ export function ProjectDetailPage() {
 
   const overallScore = latestRun?.overall_score;
   const scores = latestRun?.scores || [];
+  const displayOutput = streaming ? streamingOutput : latestRun?.output_text;
+  const displayLatency = streaming ? streamLatency : latestRun?.latency_ms;
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden text-sm">
@@ -94,7 +185,7 @@ export function ProjectDetailPage() {
           <span className="text-neutral-300">/</span>
           <span className="font-semibold text-neutral-900">{project.name}</span>
           <span className="ml-2 px-1.5 py-0.5 bg-neutral-100 text-[10px] rounded text-neutral-500 font-bold uppercase tracking-widest">
-            {latestRun?.status?.toUpperCase() || "KEINE LÄUFE"}
+            {streaming ? "LÄUFT" : latestRun?.status?.toUpperCase() || "KEINE LÄUFE"}
           </span>
         </div>
         <div className="flex gap-2">
@@ -108,11 +199,18 @@ export function ProjectDetailPage() {
             </button>
           )}
           <button
-            onClick={() => setShowRunModal(true)}
-            className="px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-primary-500 transition-colors"
+            onClick={handleStartEval}
+            disabled={!canStart || streaming}
+            title={
+              !project.default_model ? "Standardmodell muss gesetzt sein" :
+              criteria.length === 0 ? "Mindestens ein Kriterium erforderlich" :
+              !userPrompt.trim() ? "Prompt des Nutzers darf nicht leer sein" :
+              undefined
+            }
+            className="px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded shadow-sm text-black flex items-center gap-2 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <PlayCircle className="w-3.5 h-3.5" />
-            Evaluierung starten
+            {streaming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
+            {streaming ? "Läuft…" : "Evaluierung starten"}
           </button>
         </div>
       </header>
@@ -121,8 +219,15 @@ export function ProjectDetailPage() {
         {/* Column 1: Criteria */}
         <div className="w-[300px] shrink-0 flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">01. Kriterien</span>
-            <button className="text-neutral-400 hover:text-neutral-900 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">01. Kriterien</span>
+              {criteria.length > 0 && (
+                <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${totalWeight === 100 ? "text-green-600 bg-green-50" : "text-orange-600 bg-orange-50"}`}>
+                  {totalWeight}/100
+                </span>
+              )}
+            </div>
+            <button onClick={() => setShowCriterionModal(true)} className="text-neutral-400 hover:text-neutral-900 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {criteria.length === 0 ? (
@@ -135,35 +240,41 @@ export function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* Column 2: Prompts */}
+        {/* Column 2: Prompts (editable) */}
         <div className="flex-[1.2] min-w-[320px] flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">02. Eingabe-Prompt</span>
-            {latestRun && (
+            {project.default_model && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-neutral-600 bg-neutral-100 border border-neutral-200 font-mono tracking-wide">
-                {latestRun.model_tag.toUpperCase()}
+                {project.default_model.split("/").pop()?.toUpperCase()}
               </span>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-            {latestRun ? (
-              <>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase">System</label>
-                  <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-40 overflow-y-auto bg-white">
-                    {latestRun.system_prompt || "Kein System-Prompt"}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase">Benutzer / Eingaben</label>
-                  <div className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed h-32 overflow-y-auto bg-white">
-                    {latestRun.user_input || "Keine Benutzereingabe"}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-neutral-400 text-center py-8">Noch keine Läufe. Klicke auf &bdquo;Evaluierung starten&ldquo;, um zu beginnen.</p>
-            )}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-neutral-400 uppercase">System-Prompt</label>
+              <textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                placeholder="Optional: System-Prompt eingeben…"
+                rows={5}
+                disabled={streaming}
+                className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed resize-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:opacity-50"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-neutral-400 uppercase">
+                Prompt des Nutzers <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                placeholder="Prompt eingeben…"
+                rows={6}
+                disabled={streaming}
+                className="w-full border border-neutral-200 rounded p-3 text-xs text-neutral-700 font-mono leading-relaxed resize-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:opacity-50"
+              />
+            </div>
           </div>
         </div>
 
@@ -171,17 +282,21 @@ export function ProjectDetailPage() {
         <div className="flex-[1.1] min-w-[300px] flex flex-col bg-white">
           <div className="p-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between z-10">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">03. Ausgabe</span>
-            {latestRun?.latency_ms && (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-[10px] text-neutral-500 font-mono">{latestRun.latency_ms}ms</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {streaming && <span className="w-2 h-2 rounded-full bg-primary-400 animate-pulse" />}
+              {displayLatency && (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="text-[10px] text-neutral-500 font-mono">{displayLatency}ms</span>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
-            {latestRun?.output_text ? (
-              <div className="bg-white border border-neutral-200 rounded p-4 h-full max-h-96 overflow-y-auto leading-relaxed text-xs text-neutral-800 shadow-inner whitespace-pre-wrap">
-                {latestRun.output_text}
+            {displayOutput ? (
+              <div ref={outputRef} className="bg-white border border-neutral-200 rounded p-4 h-full overflow-y-auto leading-relaxed text-xs text-neutral-800 shadow-inner whitespace-pre-wrap">
+                {displayOutput}
+                {streaming && <span className="inline-block w-1.5 h-3.5 bg-neutral-400 animate-pulse ml-0.5 align-text-bottom" />}
               </div>
             ) : (
               <p className="text-xs text-neutral-400 text-center py-8">Noch keine Ausgabe</p>
@@ -240,15 +355,14 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      {showRunModal && (
-        <NewRunModal
+      {showCriterionModal && (
+        <AddCriterionModal
           projectId={project.id}
-          defaultModel={project.default_model}
-          availableModels={availableModels}
-          onClose={() => setShowRunModal(false)}
-          onCreated={(run) => {
-            setLatestRun(run);
-            setShowRunModal(false);
+          usedWeight={totalWeight}
+          onClose={() => setShowCriterionModal(false)}
+          onCreated={(c) => {
+            setCriteria([...criteria, c]);
+            setShowCriterionModal(false);
           }}
         />
       )}
@@ -269,119 +383,114 @@ export function ProjectDetailPage() {
   );
 }
 
-function NewRunModal({
+function AddCriterionModal({
   projectId,
-  defaultModel,
-  availableModels,
+  usedWeight,
   onClose,
   onCreated,
 }: {
   projectId: string;
-  defaultModel: string | null;
-  availableModels: ProviderModel[];
+  usedWeight: number;
   onClose: () => void;
-  onCreated: (run: EvalRun) => void;
+  onCreated: (c: Criterion) => void;
 }) {
-  const [modelTag, setModelTag] = useState(defaultModel || "");
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [userInput, setUserInput] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [weight, setWeight] = useState(Math.min(100 - usedWeight, 100));
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async () => {
-    if (!modelTag.trim()) {
-      setError("Bitte wähle ein Modell aus.");
-      return;
-    }
-    setSubmitting(true);
+  useEffect(() => { titleRef.current?.focus(); }, []);
+
+  const remaining = 100 - usedWeight;
+  const validWeight = weight > 0 && weight <= remaining;
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError("Name ist erforderlich."); return; }
+    if (!validWeight) { setError(`Gewichtung muss zwischen 1 und ${remaining} liegen.`); return; }
+    setSaving(true);
     setError("");
     try {
-      const run = await api<EvalRun>(`/api/projects/${projectId}/runs`, {
+      const c = await api<Criterion>(`/api/projects/${projectId}/criteria`, {
         method: "POST",
-        body: JSON.stringify({
-          model_tag: modelTag.trim(),
-          system_prompt: systemPrompt,
-          user_input: userInput,
-        }),
+        body: JSON.stringify({ title: title.trim(), description: description.trim(), weight }),
       });
-      onCreated(run);
+      onCreated(c);
     } catch (err: any) {
-      setError(err.message || "Fehler beim Starten.");
+      setError(err.message || "Fehler beim Speichern.");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-neutral-900">Evaluierung starten</h2>
+          <h2 className="text-sm font-bold text-neutral-900">Kriterium hinzufügen</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
         </div>
 
-        <div>
-          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">Modell</label>
-          {availableModels.length > 0 ? (
-            <div className="relative">
-              <select
-                value={modelTag}
-                onChange={(e) => setModelTag(e.target.value)}
-                className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 pr-8"
-              >
-                <option value="">Modell auswählen...</option>
-                {availableModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.id}{m.name !== m.id ? ` — ${m.name}` : ""}</option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          ) : (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">Name</label>
+          <input
+            ref={titleRef}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="z.B. Relevanz, Ton, Korrektheit…"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">Beschreibung</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Beschreibe, was dieses Kriterium bewertet…"
+            rows={3}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">
+            Gewichtung
+            <span className="ml-2 font-normal normal-case text-neutral-400">({remaining} von 100 verfügbar)</span>
+          </label>
+          <div className="flex items-center gap-3">
             <input
-              type="text"
-              value={modelTag}
-              onChange={(e) => setModelTag(e.target.value)}
-              placeholder="z.B. openai/gpt-4o"
-              className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+              type="number"
+              min={1}
+              max={remaining}
+              value={weight}
+              onChange={(e) => setWeight(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-20 px-3 py-2 border border-neutral-300 rounded text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
             />
-          )}
-        </div>
-
-        <div>
-          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">System-Prompt</label>
-          <textarea
-            value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
-            placeholder="Optional: System-Prompt eingeben..."
-            rows={3}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-          />
-        </div>
-
-        <div>
-          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-1.5">Benutzereingabe</label>
-          <textarea
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Benutzereingabe..."
-            rows={3}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-          />
+            <div className="flex-1 bg-neutral-100 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${validWeight ? "bg-primary-400" : "bg-red-400"}`}
+                style={{ width: `${Math.min((weight / 100) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
 
         {error && <p className="text-xs text-red-500">{error}</p>}
 
-        <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 px-3 py-2 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
             Abbrechen
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={submitting || !modelTag.trim()}
-            className="flex-1 px-3 py-2 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            onClick={handleSave}
+            disabled={saving || !title.trim() || !validWeight}
+            className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
-            {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
-            Starten
+            {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+            Hinzufügen
           </button>
         </div>
       </div>

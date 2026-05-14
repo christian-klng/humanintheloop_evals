@@ -1,7 +1,28 @@
 import { Router } from "express";
 import { query } from "../db.js";
+import { decrypt } from "../lib/crypto.js";
+import { streamChatCompletion, type ProviderType, type ChatMessage } from "../lib/providers.js";
 
 const router = Router();
+
+async function resolveProvider(projectId: string, userId: string): Promise<{ provider: ProviderType; apiKey: string } | null> {
+  const { rows: projRows } = await query("SELECT workspace_id FROM projects WHERE id = $1", [projectId]);
+  if (projRows.length === 0) return null;
+
+  const wsId = projRows[0].workspace_id;
+  const table = wsId ? "workspaces" : "users";
+  const idCol = wsId ? "id" : "id";
+  const idVal = wsId || userId;
+
+  const { rows } = await query(
+    `SELECT llm_provider, llm_api_key_enc, llm_api_key_iv, llm_api_key_tag FROM ${table} WHERE ${idCol} = $1`,
+    [idVal]
+  );
+  if (rows.length === 0 || !rows[0].llm_provider) return null;
+
+  const apiKey = decrypt(rows[0].llm_api_key_enc, rows[0].llm_api_key_iv, rows[0].llm_api_key_tag);
+  return { provider: rows[0].llm_provider as ProviderType, apiKey };
+}
 
 async function canAccessProject(projectId: string, userId: string): Promise<boolean> {
   const { rows } = await query(
@@ -45,12 +66,80 @@ router.post("/projects/:id/runs", async (req, res) => {
     res.status(400).json({ error: "model_tag is required" });
     return;
   }
-  const { rows } = await query(
-    `INSERT INTO eval_runs (project_id, model_tag, system_prompt, user_input)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
+
+  const providerInfo = await resolveProvider(req.params.id, req.userId!);
+  if (!providerInfo) {
+    res.status(400).json({ error: "Kein API-Provider konfiguriert" });
+    return;
+  }
+
+  const { rows: runRows } = await query(
+    `INSERT INTO eval_runs (project_id, model_tag, system_prompt, user_input, status)
+     VALUES ($1, $2, $3, $4, 'running') RETURNING *`,
     [req.params.id, model_tag, system_prompt || "", user_input || ""]
   );
-  res.status(201).json(rows[0]);
+  const run = runRows[0];
+
+  const messages: ChatMessage[] = [];
+  if (system_prompt) messages.push({ role: "system", content: system_prompt });
+  messages.push({ role: "user", content: user_input || "" });
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Run-Id", run.id);
+  res.flushHeaders();
+
+  const startTime = Date.now();
+  let fullOutput = "";
+
+  try {
+    const llmRes = await streamChatCompletion(providerInfo.provider, providerInfo.apiKey, model_tag, messages);
+
+    if (!llmRes.body) throw new Error("No response body from provider");
+
+    const reader = llmRes.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(payload);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            fullOutput += content;
+            res.write(`data: ${JSON.stringify({ chunk: content })}\n\n`);
+          }
+        } catch {
+          // skip malformed chunks
+        }
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
+    await query(
+      `UPDATE eval_runs SET output_text = $1, latency_ms = $2, status = 'completed' WHERE id = $3`,
+      [fullOutput, latencyMs, run.id]
+    );
+    res.write(`data: ${JSON.stringify({ done: true, run_id: run.id, latency_ms: latencyMs })}\n\n`);
+  } catch (err: any) {
+    await query(`UPDATE eval_runs SET status = 'failed' WHERE id = $1`, [run.id]);
+    res.write(`data: ${JSON.stringify({ error: err.message || "LLM-Aufruf fehlgeschlagen" })}\n\n`);
+  }
+
+  res.end();
 });
 
 router.get("/projects/:id/runs/:rid", async (req, res) => {

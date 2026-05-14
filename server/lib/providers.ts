@@ -44,3 +44,32 @@ export async function testConnection(provider: ProviderType, apiKey: string): Pr
     return false;
   }
 }
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export async function streamChatCompletion(
+  provider: ProviderType,
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+): Promise<Response> {
+  const baseUrl = getProviderBaseUrl(provider);
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages, stream: true }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Provider API error (${res.status}): ${body.slice(0, 200)}`);
+  }
+
+  return res;
+}
