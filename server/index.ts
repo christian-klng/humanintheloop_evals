@@ -29,7 +29,7 @@ app.use("/api", runsRouter);
 if (process.env.NODE_ENV === "production") {
   const distPath = path.resolve("dist");
   app.use(express.static(distPath));
-  app.get("*", (_req, res) => {
+  app.get("{*path}", (_req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
