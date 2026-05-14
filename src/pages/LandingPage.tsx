@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col items-center pt-8 overflow-x-hidden w-full bg-[#FCFCFC] text-[#1A1A1A]">
@@ -7,6 +9,7 @@ export function LandingPage() {
           <img src="/logo.png" alt="Human in the Loop" className="h-6 w-6" />
           HUMAN IN THE LOOP
         </div>
+        <Link to="/impressum" className="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors">Impressum</Link>
       </nav>
 
       {/* Hero Section */}
@@ -57,6 +60,7 @@ export function LandingPage() {
         <div className="w-full border-t border-neutral-200">
           <div className="w-full max-w-6xl mx-auto px-6 h-10 flex items-center justify-between text-[10px] text-neutral-400 font-mono">
             <span>&copy; {new Date().getFullYear()} HUMAN IN THE LOOP</span>
+            <Link to="/impressum" className="hover:text-neutral-900 transition-colors">Impressum</Link>
           </div>
         </div>
       </footer>
