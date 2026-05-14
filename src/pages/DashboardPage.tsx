@@ -250,7 +250,11 @@ interface ProviderConfig {
   configured_at?: string;
 }
 
-function WorkspaceSettings({ apiBase }: { apiBase: string }) {
+function WorkspaceSettings({ apiBase, workspaceId, workspaceName, onNameChanged }: { apiBase: string; workspaceId: string | null; workspaceName: string | null; onNameChanged?: (name: string) => void }) {
+  const [wsName, setWsName] = useState(workspaceName || "");
+  const [savingName, setSavingName] = useState(false);
+  const [nameSuccess, setNameSuccess] = useState("");
+
   const [provider, setProvider] = useState<"openrouter" | "cortecs" | "">("");
   const [savedProvider, setSavedProvider] = useState<"openrouter" | "cortecs" | "">("");
   const [apiKey, setApiKey] = useState("");
@@ -373,6 +377,24 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
     }
   };
 
+  const handleSaveName = async () => {
+    if (!workspaceId || !wsName.trim()) return;
+    setSavingName(true);
+    setNameSuccess("");
+    try {
+      const result = await api<{ name: string }>(`/api/workspaces/${workspaceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: wsName.trim() }),
+      });
+      setNameSuccess("Name gespeichert.");
+      onNameChanged?.(result.name);
+    } catch {
+      setNameSuccess("");
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   const filteredModels = modelFilter
     ? models.filter(
         (m) =>
@@ -391,10 +413,30 @@ function WorkspaceSettings({ apiBase }: { apiBase: string }) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-neutral-900">Einstellungen</h1>
-        <p className="text-sm text-neutral-500 mt-1">Konfiguriere den LLM-Anbieter für deine Evaluierungen.</p>
-      </div>
+      <h1 className="text-xl font-bold tracking-tight text-neutral-900">Einstellungen</h1>
+
+      {workspaceId && (
+        <div className="border border-neutral-200 rounded bg-white shadow-sm p-6 space-y-4">
+          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block">Arbeitsbereich</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={wsName}
+              onChange={(e) => { setWsName(e.target.value); setNameSuccess(""); }}
+              className="flex-1 px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            />
+            <button
+              onClick={handleSaveName}
+              disabled={savingName || !wsName.trim() || wsName.trim() === workspaceName}
+              className="px-4 py-2 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              {savingName && <Loader2 className="w-3 h-3 animate-spin" />}
+              Speichern
+            </button>
+          </div>
+          {nameSuccess && <p className="text-xs text-green-600">{nameSuccess}</p>}
+        </div>
+      )}
 
       <div className="border border-neutral-200 rounded bg-white shadow-sm p-6 space-y-6">
         <div>
@@ -645,7 +687,12 @@ export function DashboardPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         {activeTab === "einstellungen" ? (
-          <WorkspaceSettings apiBase={activeWorkspace ? `/api/workspaces/${activeWorkspace}` : "/api/me"} />
+          <WorkspaceSettings
+            apiBase={activeWorkspace ? `/api/workspaces/${activeWorkspace}` : "/api/me"}
+            workspaceId={activeWorkspace}
+            workspaceName={currentWorkspace?.name || null}
+            onNameChanged={(name) => setWorkspaces((prev) => prev.map((w) => w.id === activeWorkspace ? { ...w, name } : w))}
+          />
         ) : (
           <>
             <div className="flex items-end justify-between mb-8">

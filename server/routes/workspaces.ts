@@ -88,6 +88,27 @@ router.post("/workspaces/join", async (req, res) => {
   res.status(201).json(workspace);
 });
 
+router.patch("/workspaces/:id", async (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    res.status(400).json({ error: "Name ist erforderlich" });
+    return;
+  }
+  const { rows: membership } = await query(
+    "SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
+    [req.params.id, req.userId]
+  );
+  if (membership.length === 0) {
+    res.status(404).json({ error: "Arbeitsbereich nicht gefunden" });
+    return;
+  }
+  const { rows } = await query(
+    "UPDATE workspaces SET name = $1 WHERE id = $2 RETURNING id, name",
+    [name.trim(), req.params.id]
+  );
+  res.json(rows[0]);
+});
+
 router.get("/workspaces/:id", async (req, res) => {
   const { rows: membership } = await query(
     "SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
