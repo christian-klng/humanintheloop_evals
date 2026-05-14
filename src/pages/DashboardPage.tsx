@@ -250,7 +250,7 @@ interface ProviderConfig {
   configured_at?: string;
 }
 
-function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
+function WorkspaceSettings({ apiBase }: { apiBase: string }) {
   const [provider, setProvider] = useState<"openrouter" | "cortecs" | "">("");
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -267,10 +267,23 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [modelFilter, setModelFilter] = useState("");
 
+  const loadModels = useCallback(async () => {
+    setLoadingModels(true);
+    try {
+      const data = await api<{ models: ProviderModel[] }>(`${apiBase}/provider/models`);
+      setModels(data.models || []);
+    } catch {
+      setModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [apiBase]);
+
   const loadConfig = useCallback(async () => {
     setLoadingConfig(true);
+    setError("");
     try {
-      const config = await api<ProviderConfig>(`/api/workspaces/${workspaceId}/provider`);
+      const config = await api<ProviderConfig>(`${apiBase}/provider`);
       if (config.provider) {
         setProvider(config.provider as "openrouter" | "cortecs");
         setMaskedKey(config.api_key_masked || null);
@@ -287,19 +300,7 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
     } finally {
       setLoadingConfig(false);
     }
-  }, [workspaceId]);
-
-  const loadModels = async () => {
-    setLoadingModels(true);
-    try {
-      const data = await api<{ models: ProviderModel[] }>(`/api/workspaces/${workspaceId}/provider/models`);
-      setModels(data.models || []);
-    } catch {
-      setModels([]);
-    } finally {
-      setLoadingModels(false);
-    }
-  };
+  }, [apiBase, loadModels]);
 
   useEffect(() => {
     loadConfig();
@@ -315,7 +316,7 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
     setSuccess("");
     setTestResult(null);
     try {
-      const result = await api<ProviderConfig>(`/api/workspaces/${workspaceId}/provider`, {
+      const result = await api<ProviderConfig>(`${apiBase}/provider`, {
         method: "PUT",
         body: JSON.stringify({ provider, api_key: apiKey.trim() }),
       });
@@ -335,7 +336,7 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await api<{ ok: boolean; error?: string }>(`/api/workspaces/${workspaceId}/provider/test`, {
+      const result = await api<{ ok: boolean; error?: string }>(`${apiBase}/provider/test`, {
         method: "POST",
       });
       setTestResult(result);
@@ -351,7 +352,7 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
     setError("");
     setSuccess("");
     try {
-      await api(`/api/workspaces/${workspaceId}/provider`, { method: "DELETE" });
+      await api(`${apiBase}/provider`, { method: "DELETE" });
       setProvider("");
       setMaskedKey(null);
       setConfiguredAt(null);
@@ -386,7 +387,7 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
     <div className="space-y-8">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-neutral-900">Einstellungen</h1>
-        <p className="text-sm text-neutral-500 mt-1">Konfiguriere den LLM-Anbieter für diesen Arbeitsbereich.</p>
+        <p className="text-sm text-neutral-500 mt-1">Konfiguriere den LLM-Anbieter für deine Evaluierungen.</p>
       </div>
 
       <div className="border border-neutral-200 rounded bg-white shadow-sm p-6 space-y-6">
@@ -409,65 +410,67 @@ function WorkspaceSettings({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
 
-        <div>
-          <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-2">API-Schlüssel</label>
-          {maskedKey && !apiKey && (
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-neutral-500 font-mono">{maskedKey}</span>
-              {configuredAt && (
-                <span className="text-[10px] text-neutral-400">
-                  — zuletzt aktualisiert {new Date(configuredAt).toLocaleDateString("de-DE")}
-                </span>
+        {provider && (
+          <div>
+            <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest block mb-2">API-Schlüssel</label>
+            {maskedKey && !apiKey && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-neutral-500 font-mono">{maskedKey}</span>
+                {configuredAt && (
+                  <span className="text-[10px] text-neutral-400">
+                    — zuletzt aktualisiert {new Date(configuredAt).toLocaleDateString("de-DE")}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showKey ? "text" : "password"}
+                  value={apiKey}
+                  onChange={(e) => { setApiKey(e.target.value); setError(""); setSuccess(""); }}
+                  placeholder={maskedKey ? "Neuen Schlüssel eingeben..." : "API-Schlüssel eingeben..."}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono pr-9 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                >
+                  {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={saving || !provider || !apiKey.trim()}
+                className="px-4 py-2 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+                Speichern
+              </button>
+              {maskedKey && (
+                <button
+                  onClick={handleTest}
+                  disabled={testing}
+                  className="px-4 py-2 text-xs font-medium border border-neutral-200 rounded text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  {testing && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Testen
+                </button>
+              )}
+              {maskedKey && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-2.5 py-2 text-xs border border-neutral-200 rounded text-red-500 hover:bg-red-50 hover:border-red-200 disabled:opacity-50 transition-colors"
+                  title="Konfiguration entfernen"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
-          )}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => { setApiKey(e.target.value); setError(""); setSuccess(""); }}
-                placeholder={maskedKey ? "Neuen Schlüssel eingeben..." : "API-Schlüssel eingeben..."}
-                className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono pr-9 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-              >
-                {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={saving || !provider || !apiKey.trim()}
-              className="px-4 py-2 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded text-black hover:bg-yellow-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-            >
-              {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-              Speichern
-            </button>
-            {maskedKey && (
-              <button
-                onClick={handleTest}
-                disabled={testing}
-                className="px-4 py-2 text-xs font-medium border border-neutral-200 rounded text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-              >
-                {testing && <Loader2 className="w-3 h-3 animate-spin" />}
-                Testen
-              </button>
-            )}
-            {maskedKey && (
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-2.5 py-2 text-xs border border-neutral-200 rounded text-red-500 hover:bg-red-50 hover:border-red-200 disabled:opacity-50 transition-colors"
-                title="Konfiguration entfernen"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
-        </div>
+        )}
 
         {error && <p className="text-xs text-red-500">{error}</p>}
         {success && <p className="text-xs text-green-600">{success}</p>}
@@ -598,14 +601,12 @@ export function DashboardPage() {
               Projekte
             </button>
             <button className="h-12 flex items-center hover:text-neutral-900 cursor-pointer">Datensätze</button>
-            {activeWorkspace && (
-              <button
-                onClick={() => setActiveTab("einstellungen")}
-                className={`h-12 flex items-center transition-colors ${activeTab === "einstellungen" ? "text-neutral-900 border-b-2 border-yellow-400" : "hover:text-neutral-900"}`}
-              >
-                Einstellungen
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab("einstellungen")}
+              className={`h-12 flex items-center transition-colors ${activeTab === "einstellungen" ? "text-neutral-900 border-b-2 border-yellow-400" : "hover:text-neutral-900"}`}
+            >
+              Einstellungen
+            </button>
           </nav>
         </div>
         <div className="flex items-center gap-5">
@@ -630,8 +631,8 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-12">
-        {activeTab === "einstellungen" && activeWorkspace ? (
-          <WorkspaceSettings workspaceId={activeWorkspace} />
+        {activeTab === "einstellungen" ? (
+          <WorkspaceSettings apiBase={activeWorkspace ? `/api/workspaces/${activeWorkspace}` : "/api/me"} />
         ) : (
           <>
             <div className="flex items-end justify-between mb-8">

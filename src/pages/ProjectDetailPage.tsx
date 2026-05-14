@@ -66,11 +66,12 @@ export function ProjectDetailPage() {
         const run = await api<EvalRun>(`/api/projects/${id}/runs/${runs[0].id}`);
         setLatestRun(run);
       }
-      if (proj.workspace_id) {
-        api<{ models: ProviderModel[] }>(`/api/workspaces/${proj.workspace_id}/provider/models`)
-          .then((data) => setAvailableModels(data.models || []))
-          .catch(() => {});
-      }
+      const modelsUrl = proj.workspace_id
+        ? `/api/workspaces/${proj.workspace_id}/provider/models`
+        : "/api/me/provider/models";
+      api<{ models: ProviderModel[] }>(modelsUrl)
+        .then((data) => setAvailableModels(data.models || []))
+        .catch(() => {});
     }).finally(() => setLoading(false));
   }, [id]);
 
@@ -97,7 +98,7 @@ export function ProjectDetailPage() {
           </span>
         </div>
         <div className="flex gap-2">
-          {project.workspace_id && availableModels.length > 0 && (
+          {availableModels.length > 0 && (
             <button
               onClick={() => setShowConfigModal(true)}
               className="px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5 text-neutral-700"
