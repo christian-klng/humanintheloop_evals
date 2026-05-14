@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { Plus, Users, FolderOpen, LogIn, Copy, Check } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { Plus, Users, LogIn, Copy, Check, ChevronDown } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 
@@ -166,6 +166,79 @@ function InviteCodeDisplay({ code }: { code: string }) {
   );
 }
 
+function WorkspaceSwitcher({
+  workspaces,
+  activeWorkspace,
+  onSelect,
+}: {
+  workspaces: Workspace[];
+  activeWorkspace: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const current = activeWorkspace
+    ? workspaces.find((w) => w.id === activeWorkspace)
+    : null;
+
+  const label = current ? current.name : "Meine Projekte";
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors text-xs font-medium text-neutral-800"
+      >
+        {current ? <Users className="w-3.5 h-3.5 text-neutral-500" /> : null}
+        {label}
+        <ChevronDown className={`w-3 h-3 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 py-1">
+          <button
+            onClick={() => { onSelect(null); setOpen(false); }}
+            className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+              activeWorkspace === null
+                ? "bg-yellow-50 text-neutral-900 font-semibold"
+                : "text-neutral-600 hover:bg-neutral-50"
+            }`}
+          >
+            Meine Projekte
+          </button>
+          {workspaces.length > 0 && <div className="border-t border-neutral-100 my-1" />}
+          {workspaces.map((ws) => (
+            <button
+              key={ws.id}
+              onClick={() => { onSelect(ws.id); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
+                activeWorkspace === ws.id
+                  ? "bg-yellow-50 text-neutral-900 font-semibold"
+                  : "text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Users className="w-3 h-3 text-neutral-400" />
+                <span className="truncate">{ws.name}</span>
+              </span>
+              <span className="text-[10px] text-neutral-400">{ws.member_count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const { logout } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -246,139 +319,103 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-56 min-h-[calc(100vh-3rem)] border-r border-neutral-200 bg-white flex flex-col">
-          <div className="p-3">
-            <button
-              onClick={() => handleSelectWorkspace(null)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-medium transition-colors ${
-                activeWorkspace === null
-                  ? "bg-yellow-50 text-neutral-900 border border-yellow-200"
-                  : "text-neutral-600 hover:bg-neutral-50"
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-              Meine Projekte
-            </button>
-          </div>
-
-          <div className="px-3 pt-2 pb-1">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Arbeitsbereiche</span>
-          </div>
-
-          <div className="flex-1 px-3 space-y-0.5">
-            {workspaces.map((ws) => (
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        {/* Workspace switcher row */}
+        {workspaces.length > 0 && (
+          <div className="flex items-center justify-between mb-4">
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              activeWorkspace={activeWorkspace}
+              onSelect={handleSelectWorkspace}
+            />
+            <div className="flex items-center gap-2">
               <button
-                key={ws.id}
-                onClick={() => handleSelectWorkspace(ws.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-medium transition-colors ${
-                  activeWorkspace === ws.id
-                    ? "bg-yellow-50 text-neutral-900 border border-yellow-200"
-                    : "text-neutral-600 hover:bg-neutral-50"
-                }`}
+                onClick={() => setShowCreateModal(true)}
+                className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
               >
-                <Users className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{ws.name}</span>
-                <span className="ml-auto text-[10px] text-neutral-400">{ws.member_count}</span>
+                <Plus className="w-3 h-3" />
+                Bereich erstellen
               </button>
-            ))}
+              <button
+                onClick={() => setShowJoinModal(true)}
+                className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
+              >
+                <LogIn className="w-3 h-3" />
+                Bereich beitreten
+              </button>
+            </div>
+          </div>
+        )}
 
-            {workspaces.length === 0 && (
-              <p className="text-[10px] text-neutral-400 px-3 py-2">Noch keine Arbeitsbereiche.</p>
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-neutral-900">
+              {currentWorkspace ? currentWorkspace.name : "Meine Projekte"}
+            </h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              {currentWorkspace
+                ? "Projekte in diesem Arbeitsbereich."
+                : "Verwalte und überwache deine Evaluierungspipelines."}
+            </p>
+            {currentWorkspace && (
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">Einladungscode:</span>
+                <InviteCodeDisplay code={currentWorkspace.invite_code} />
+              </div>
             )}
           </div>
+          <button
+            onClick={handleNewProject}
+            className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black hover:bg-yellow-500 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-3 h-3" />
+            Neues Projekt
+          </button>
+        </div>
 
-          <div className="p-3 border-t border-neutral-200 space-y-1.5">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 rounded transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              Bereich erstellen
-            </button>
-            <button
-              onClick={() => setShowJoinModal(true)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 rounded transition-colors"
-            >
-              <LogIn className="w-3 h-3" />
-              Bereich beitreten
-            </button>
+        <div className="border border-neutral-200 rounded bg-white overflow-hidden shadow-sm">
+          <div className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-200 bg-neutral-50 text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+            <div className="col-span-12 sm:col-span-5">Name</div>
+            <div className="hidden sm:block col-span-3">Modelle</div>
+            <div className="hidden sm:block col-span-2">Letzter Lauf</div>
+            <div className="hidden sm:flex col-span-2 justify-end text-right">Status</div>
           </div>
-        </aside>
-
-        {/* Main content */}
-        <main className="flex-1 max-w-5xl mx-auto px-6 py-12">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-neutral-900">
-                {currentWorkspace ? currentWorkspace.name : "Meine Projekte"}
-              </h1>
-              <p className="text-sm text-neutral-500 mt-1">
+          <div className="divide-y divide-neutral-200 bg-white">
+            {loading ? (
+              <div className="p-8 text-center text-xs text-neutral-400">Laden...</div>
+            ) : projects.length === 0 ? (
+              <div className="p-8 text-center text-xs text-neutral-400">
                 {currentWorkspace
-                  ? "Projekte in diesem Arbeitsbereich."
-                  : "Deine privaten Evaluierungspipelines."}
-              </p>
-              {currentWorkspace && (
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">Einladungscode:</span>
-                  <InviteCodeDisplay code={currentWorkspace.invite_code} />
-                </div>
-              )}
-            </div>
-            <button
-              onClick={handleNewProject}
-              className="px-3 py-1.5 text-xs font-bold bg-yellow-400 border border-yellow-500 rounded shadow-sm text-black hover:bg-yellow-500 transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-3 h-3" />
-              Neues Projekt
-            </button>
+                  ? "Noch keine Projekte in diesem Arbeitsbereich."
+                  : "Noch keine Projekte. Erstelle dein erstes, um loszulegen."}
+              </div>
+            ) : (
+              projects.map((project) => (
+                <Link key={project.id} to={`/project/${project.id}`} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-neutral-50 transition-colors group cursor-pointer block sm:grid">
+                  <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-md bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-500 transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    </div>
+                    <span className="font-semibold text-neutral-900 text-xs transition-colors truncate">{project.name}</span>
+                  </div>
+                  <div className="hidden sm:flex col-span-3 items-center">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100 text-neutral-600 font-mono text-[10px] truncate">
+                      {project.models || "Noch keine Läufe"}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block col-span-2 text-[11px] text-neutral-500">{formatTimeAgo(project.last_run)}</div>
+                  <div className="hidden sm:flex col-span-2 justify-end">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold tracking-wide border border-neutral-200 bg-white text-neutral-700">
+                      <span className={`w-1.5 h-1.5 rounded-full ${project.status === 'Healthy' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                      {project.status.toUpperCase()}
+                    </span>
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
-
-          <div className="border border-neutral-200 rounded bg-white overflow-hidden shadow-sm">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-200 bg-neutral-50 text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-              <div className="col-span-12 sm:col-span-5">Name</div>
-              <div className="hidden sm:block col-span-3">Modelle</div>
-              <div className="hidden sm:block col-span-2">Letzter Lauf</div>
-              <div className="hidden sm:flex col-span-2 justify-end text-right">Status</div>
-            </div>
-            <div className="divide-y divide-neutral-200 bg-white">
-              {loading ? (
-                <div className="p-8 text-center text-xs text-neutral-400">Laden...</div>
-              ) : projects.length === 0 ? (
-                <div className="p-8 text-center text-xs text-neutral-400">
-                  {currentWorkspace
-                    ? "Noch keine Projekte in diesem Arbeitsbereich."
-                    : "Noch keine Projekte. Erstelle dein erstes, um loszulegen."}
-                </div>
-              ) : (
-                projects.map((project) => (
-                  <Link key={project.id} to={`/project/${project.id}`} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-neutral-50 transition-colors group cursor-pointer block sm:grid">
-                    <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-md bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-500 transition-colors">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      </div>
-                      <span className="font-semibold text-neutral-900 text-xs transition-colors truncate">{project.name}</span>
-                    </div>
-                    <div className="hidden sm:flex col-span-3 items-center">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100 text-neutral-600 font-mono text-[10px] truncate">
-                        {project.models || "Noch keine Läufe"}
-                      </span>
-                    </div>
-                    <div className="hidden sm:block col-span-2 text-[11px] text-neutral-500">{formatTimeAgo(project.last_run)}</div>
-                    <div className="hidden sm:flex col-span-2 justify-end">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold tracking-wide border border-neutral-200 bg-white text-neutral-700">
-                        <span className={`w-1.5 h-1.5 rounded-full ${project.status === 'Healthy' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-                        {project.status.toUpperCase()}
-                      </span>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
+        </div>
+      </main>
 
       {showJoinModal && <JoinWorkspaceModal onClose={() => setShowJoinModal(false)} onJoined={handleWorkspaceJoined} />}
       {showCreateModal && <CreateWorkspaceModal onClose={() => setShowCreateModal(false)} onCreated={handleWorkspaceCreated} />}
