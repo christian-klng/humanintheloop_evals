@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info, X, Loader2, ChevronDown } from "lucide-react";
+import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info, X, Loader2, ChevronDown, Search, Check } from "lucide-react";
 import { api } from "../lib/api";
 
 interface Project {
@@ -404,6 +404,18 @@ function DefaultModelModal({
 }) {
   const [selectedModel, setSelectedModel] = useState(currentModel || "");
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { searchRef.current?.focus(); }, []);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return availableModels;
+    const q = search.toLowerCase();
+    return availableModels.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
+    );
+  }, [search, availableModels]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -420,24 +432,49 @@ function DefaultModelModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-neutral-900">Standardmodell</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
         </div>
         <p className="text-xs text-neutral-500 mb-3">Wird bei neuen Evaluierungen vorausgewählt.</p>
-        <div className="relative">
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs font-mono appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 pr-8"
+        <div className="relative mb-2">
+          <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Modell suchen…"
+            className="w-full pl-8 pr-3 py-2 border border-neutral-300 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+          />
+        </div>
+        <div className="border border-neutral-200 rounded max-h-56 overflow-y-auto">
+          <button
+            type="button"
+            onClick={() => setSelectedModel("")}
+            className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-neutral-50 ${selectedModel === "" ? "bg-primary-50 font-semibold" : ""}`}
           >
-            <option value="">Kein Standardmodell</option>
-            {availableModels.map((m) => (
-              <option key={m.id} value={m.id}>{m.id}</option>
-            ))}
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            {selectedModel === "" && <Check className="w-3 h-3 text-primary-600 shrink-0" />}
+            <span className={selectedModel === "" ? "" : "pl-5"}>Kein Standardmodell</span>
+          </button>
+          {filtered.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setSelectedModel(m.id)}
+              className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-neutral-50 border-t border-neutral-100 ${selectedModel === m.id ? "bg-primary-50 font-semibold" : ""}`}
+            >
+              {selectedModel === m.id && <Check className="w-3 h-3 text-primary-600 shrink-0" />}
+              <span className={selectedModel === m.id ? "" : "pl-5"}>
+                {m.name !== m.id ? m.name : m.id}
+                {m.name !== m.id && <span className="text-neutral-400 ml-1.5 font-mono">{m.id}</span>}
+              </span>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-3 py-4 text-xs text-neutral-400 text-center">Keine Modelle gefunden</div>
+          )}
         </div>
         <div className="flex gap-2 mt-4">
           <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
