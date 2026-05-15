@@ -92,6 +92,7 @@ router.post("/projects/:id/runs", async (req, res) => {
 
   const startTime = Date.now();
   let fullOutput = "";
+  let lastChunkTime = startTime;
 
   try {
     const llmRes = await streamChatCompletion(providerInfo.provider, providerInfo.apiKey, model_tag, messages);
@@ -120,6 +121,7 @@ router.post("/projects/:id/runs", async (req, res) => {
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             fullOutput += content;
+            lastChunkTime = Date.now();
             res.write(`data: ${JSON.stringify({ chunk: content })}\n\n`);
           }
         } catch {
@@ -128,7 +130,7 @@ router.post("/projects/:id/runs", async (req, res) => {
       }
     }
 
-    const latencyMs = Date.now() - startTime;
+    const latencyMs = lastChunkTime - startTime;
     await query(
       `UPDATE eval_runs SET output_text = $1, latency_ms = $2 WHERE id = $3`,
       [fullOutput, latencyMs, run.id]
