@@ -162,9 +162,17 @@ router.post("/projects/:id/runs", async (req, res) => {
           .replace(/\{\{output\}\}/g, fullOutput)
           .replace(/\{\{criteria\}\}/g, criteriaText);
 
+        const jsonInstruction = `\n\nAntworte ausschließlich mit validem JSON in diesem Format (keine Erklärung, kein Markdown):
+{
+  "scores": [
+    { "criteria_title": "<exakter Titel des Kriteriums>", "score": <Zahl zwischen 0.0 und 1.0>, "note": "<kurze Begründung>" }
+  ],
+  "summary": "<Gesamtbewertung in 1-2 Sätzen>"
+}`;
+
         const evalMessages: ChatMessage[] = [];
         if (evalSystemPrompt) evalMessages.push({ role: "system", content: evalSystemPrompt });
-        evalMessages.push({ role: "user", content: evalUserPrompt });
+        evalMessages.push({ role: "user", content: evalUserPrompt + jsonInstruction });
 
         const evalResponse = await chatCompletion(
           providerInfo.provider, providerInfo.apiKey, proj.judge_model, evalMessages

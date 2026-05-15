@@ -174,18 +174,19 @@ export function ProjectDetailPage() {
             }
             if (parsed.done) {
               setStreamLatency(parsed.latency_ms);
-              setStreaming(false);
             }
             if (parsed.eval_started) {
               setEvaluating(true);
             }
             if (parsed.eval_done || parsed.eval_error || parsed.eval_skipped) {
-              setEvaluating(false);
               const runId = parsed.run_id;
               if (runId) {
                 const run = await api<EvalRun>(`/api/projects/${project.id}/runs/${runId}`);
                 setLatestRun(run);
+                setStreamingOutput("");
               }
+              setStreaming(false);
+              setEvaluating(false);
             }
             if (parsed.error) {
               throw new Error(parsed.error);
