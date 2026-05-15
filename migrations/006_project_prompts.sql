@@ -1,0 +1,3 @@
+ALTER TABLE projects
+  ADD COLUMN system_prompt TEXT NOT NULL DEFAULT '',
+  ADD COLUMN user_input TEXT NOT NULL DEFAULT '';

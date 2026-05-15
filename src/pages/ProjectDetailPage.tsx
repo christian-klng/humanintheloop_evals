@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CheckCircle2, AlertCircle, PlayCircle, Settings2, Plus, Info, X, Loader2, ChevronDown, Search, Check } from "lucide-react";
 import { api } from "../lib/api";
@@ -12,6 +12,8 @@ interface Project {
   judge_model: string | null;
   eval_system_prompt: string;
   eval_user_prompt: string;
+  system_prompt: string;
+  user_input: string;
 }
 
 interface ProviderModel {
@@ -75,11 +77,11 @@ export function ProjectDetailPage() {
     ]).then(async ([proj, crit, runs]) => {
       setProject(proj);
       setCriteria(crit);
+      setSystemPrompt(proj.system_prompt || "");
+      setUserPrompt(proj.user_input || "");
       if (runs.length > 0) {
         const run = await api<EvalRun>(`/api/projects/${id}/runs/${runs[0].id}`);
         setLatestRun(run);
-        setSystemPrompt(run.system_prompt || "");
-        setUserPrompt(run.user_input || "");
       }
       const modelsUrl = proj.workspace_id
         ? `/api/workspaces/${proj.workspace_id}/provider/models`
@@ -89,6 +91,24 @@ export function ProjectDetailPage() {
         .catch(() => {});
     }).finally(() => setLoading(false));
   }, [id]);
+
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (loading) return;
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    if (!id) return;
+    const timer = setTimeout(() => {
+      api(`/api/projects/${id}/prompts`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_prompt: systemPrompt, user_input: userPrompt }),
+      }).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [systemPrompt, userPrompt]);
 
   const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
   const canStart = criteria.length > 0

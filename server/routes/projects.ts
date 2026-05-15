@@ -150,6 +150,24 @@ router.patch("/projects/:id/eval-config", async (req, res) => {
   res.json(rows[0]);
 });
 
+router.patch("/projects/:id/prompts", async (req, res) => {
+  if (!(await canAccessProject(req.params.id, req.userId!))) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const { system_prompt, user_input } = req.body;
+  const { rows } = await query(
+    `UPDATE projects
+     SET system_prompt = COALESCE($1, system_prompt),
+         user_input = COALESCE($2, user_input),
+         updated_at = now()
+     WHERE id = $3
+     RETURNING *`,
+    [system_prompt, user_input, req.params.id]
+  );
+  res.json(rows[0]);
+});
+
 router.delete("/projects/:id", async (req, res) => {
   if (!(await canAccessProject(req.params.id, req.userId!))) {
     res.status(404).json({ error: "Project not found" });
