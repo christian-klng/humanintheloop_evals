@@ -54,6 +54,7 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
   const [showCriterionModal, setShowCriterionModal] = useState(false);
+  const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showEvalConfigModal, setShowEvalConfigModal] = useState(false);
 
@@ -249,7 +250,7 @@ export function ProjectDetailPage() {
               <p className="text-xs text-neutral-400 text-center py-8">Noch keine Kriterien definiert</p>
             ) : (
               criteria.map((c) => (
-                <CriteriaCard key={c.id} title={c.title} desc={c.description} weight={`${c.weight}%`} />
+                <CriteriaCard key={c.id} title={c.title} desc={c.description} weight={`${c.weight}%`} onClick={() => setEditingCriterion(c)} />
               ))
             )}
           </div>
@@ -393,13 +394,30 @@ export function ProjectDetailPage() {
       </div>
 
       {showCriterionModal && (
-        <AddCriterionModal
+        <CriterionModal
           projectId={project.id}
           usedWeight={totalWeight}
           onClose={() => setShowCriterionModal(false)}
-          onCreated={(c) => {
+          onSaved={(c) => {
             setCriteria([...criteria, c]);
             setShowCriterionModal(false);
+          }}
+        />
+      )}
+
+      {editingCriterion && (
+        <CriterionModal
+          projectId={project.id}
+          criterion={editingCriterion}
+          usedWeight={totalWeight - editingCriterion.weight}
+          onClose={() => setEditingCriterion(null)}
+          onSaved={(updated) => {
+            setCriteria(criteria.map((c) => c.id === updated.id ? updated : c));
+            setEditingCriterion(null);
+          }}
+          onDeleted={() => {
+            setCriteria(criteria.filter((c) => c.id !== editingCriterion.id));
+            setEditingCriterion(null);
           }}
         />
       )}
@@ -433,21 +451,27 @@ export function ProjectDetailPage() {
   );
 }
 
-function AddCriterionModal({
+function CriterionModal({
   projectId,
+  criterion,
   usedWeight,
   onClose,
-  onCreated,
+  onSaved,
+  onDeleted,
 }: {
   projectId: string;
+  criterion?: Criterion;
   usedWeight: number;
   onClose: () => void;
-  onCreated: (c: Criterion) => void;
+  onSaved: (c: Criterion) => void;
+  onDeleted?: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [weight, setWeight] = useState(Math.min(100 - usedWeight, 100));
+  const isEdit = !!criterion;
+  const [title, setTitle] = useState(criterion?.title || "");
+  const [description, setDescription] = useState(criterion?.description || "");
+  const [weight, setWeight] = useState(criterion?.weight || Math.min(100 - usedWeight, 100));
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -462,11 +486,19 @@ function AddCriterionModal({
     setSaving(true);
     setError("");
     try {
-      const c = await api<Criterion>(`/api/projects/${projectId}/criteria`, {
-        method: "POST",
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), weight }),
-      });
-      onCreated(c);
+      if (isEdit) {
+        const c = await api<Criterion>(`/api/projects/${projectId}/criteria/${criterion!.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: title.trim(), description: description.trim(), weight }),
+        });
+        onSaved(c);
+      } else {
+        const c = await api<Criterion>(`/api/projects/${projectId}/criteria`, {
+          method: "POST",
+          body: JSON.stringify({ title: title.trim(), description: description.trim(), weight }),
+        });
+        onSaved(c);
+      }
     } catch (err: any) {
       setError(err.message || "Fehler beim Speichern.");
     } finally {
@@ -474,11 +506,23 @@ function AddCriterionModal({
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api(`/api/projects/${projectId}/criteria/${criterion!.id}`, { method: "DELETE" });
+      onDeleted?.();
+    } catch (err: any) {
+      setError(err.message || "Fehler beim Löschen.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-neutral-900">Kriterium hinzufügen</h2>
+          <h2 className="text-sm font-bold text-neutral-900">{isEdit ? "Kriterium bearbeiten" : "Kriterium hinzufügen"}</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600"><X className="w-4 h-4" /></button>
         </div>
 
@@ -531,16 +575,26 @@ function AddCriterionModal({
         {error && <p className="text-xs text-red-500">{error}</p>}
 
         <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
-            Abbrechen
-          </button>
+          {isEdit ? (
+            <button
+              onClick={handleDelete}
+              disabled={deleting || saving}
+              className="px-3 py-1.5 text-xs font-medium border border-red-200 rounded text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Löschen"}
+            </button>
+          ) : (
+            <button onClick={onClose} className="flex-1 px-3 py-1.5 text-xs font-medium border border-neutral-200 rounded text-neutral-600 hover:bg-neutral-50">
+              Abbrechen
+            </button>
+          )}
           <button
             onClick={handleSave}
-            disabled={saving || !title.trim() || !validWeight}
+            disabled={saving || deleting || !title.trim() || !validWeight}
             className="flex-1 px-3 py-1.5 text-xs font-bold bg-primary-400 border border-primary-500 rounded text-black hover:bg-primary-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-            Hinzufügen
+            {isEdit ? "Speichern" : "Hinzufügen"}
           </button>
         </div>
       </div>
@@ -791,9 +845,9 @@ function DefaultModelModal({
   );
 }
 
-function CriteriaCard({ title, desc, weight }: React.ComponentProps<"div"> & { title: string; desc: string; weight: string }) {
+function CriteriaCard({ title, desc, weight, onClick }: React.ComponentProps<"div"> & { title: string; desc: string; weight: string; onClick?: () => void }) {
   return (
-    <div className="p-3 border border-neutral-200 rounded bg-white hover:border-neutral-300 transition-all cursor-default">
+    <div onClick={onClick} className={`p-3 border border-neutral-200 rounded bg-white hover:border-neutral-300 transition-all ${onClick ? "cursor-pointer hover:shadow-sm" : "cursor-default"}`}>
       <div className="flex justify-between items-start mb-1">
         <h3 className="font-semibold text-neutral-900 text-xs">{title}</h3>
         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-neutral-500 border border-neutral-200 bg-neutral-50 font-mono tracking-widest">{weight}</span>
